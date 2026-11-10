@@ -39,7 +39,7 @@ static const char *const menu_items[] = {
 enum { STORAGE_ROOTS = 3, STORAGE_ITEMS = 8, STORAGE_NAME_BYTES = 56 };
 
 static const char *const storage_roots[STORAGE_ROOTS] = {
-    "usb:\\\\", "hdd:\\\\", "game:\\\\"
+    "usb:\\", "hdd:\\", "game:\\"
 };
 static const char *const storage_labels[STORAGE_ROOTS] = {
     "USB", "HD interno", "Pasta do jogo"
@@ -127,7 +127,7 @@ static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t sel
             xsdk_text_draw(92, 410, 2, WHITE, "Diretorio vazio.");
         } else {
             for (uint32_t i = 0; i < storage_entry_count; ++i) {
-                xsdk_text_draw(112, 392 + (int32_t)i * 32, WHITE, storage_entries[i]);
+                xsdk_text_draw(112, 392 + (int32_t)i * 32, 1, WHITE, storage_entries[i]);
             }
         }
         xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED,
