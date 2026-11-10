@@ -7,6 +7,8 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "puff.h"
+
 #include "xsdk/gpu.h"
 #include "xsdk/kernel.h"
 #include "xsdk/log.h"
@@ -28,6 +30,7 @@ enum {
     STORAGE_VISIBLE = 5,
     MAX_MOD_PACKAGES = 128,
     PACKAGE_VISIBLE = 6,
+    MAX_DECOMPRESS_BYTES = 2 * 1024 * 1024,
 };
 
 typedef enum {
@@ -64,10 +67,14 @@ typedef struct {
     char name[128];
     uint32_t uncompressed_size;
     uint32_t compressed_size;
+    uint64_t data_offset;
 } TmodEntry;
 static TmodEntry *package_entries;
 static size_t package_entry_count, package_entry_selected;
 static bool package_entries_truncated;
+static char decompress_status[64] = "A: testar descompressao em RAM";
+static uint32_t decompress_actual_size;
+static uint32_t decompress_expected_size;
 
 static const char *const menu_items[] = {
     "Diagnostico do console",
@@ -367,8 +374,97 @@ static bool load_package_entries(const ModPackage *item)
         ++package_entry_count;
     }
     package_entries_truncated = false;
+    {
+        long data_start = ftell(file);
+        if (data_start < 0) { clear_package_entries(); fclose(file); return false; }
+        uint64_t offset = (uint64_t)data_start;
+        for (size_t i = 0; i < package_entry_count; ++i) {
+            package_entries[i].data_offset = offset;
+            offset += package_entries[i].compressed_size;
+            if (offset > (uint64_t)LONG_MAX) {
+                clear_package_entries(); fclose(file); return false;
+            }
+        }
+        if (fseek(file, 0, SEEK_END) != 0) {
+            clear_package_entries(); fclose(file); return false;
+        }
+        long end = ftell(file);
+        if (end < 0 || offset != (uint64_t)end) {
+            clear_package_entries(); fclose(file); return false;
+        }
+    }
+    copy_bounded(decompress_status, sizeof(decompress_status), "A: testar descompressao em RAM");
+    decompress_actual_size = 0;
+    decompress_expected_size = 0;
     fclose(file);
     return true;
+}
+
+static void test_selected_decompression(void)
+{
+    if (package_entry_selected >= package_entry_count) return;
+    const TmodEntry *entry = &package_entries[package_entry_selected];
+    decompress_actual_size = 0;
+    decompress_expected_size = entry->uncompressed_size;
+    if (entry->uncompressed_size > MAX_DECOMPRESS_BYTES ||
+        entry->compressed_size > MAX_DECOMPRESS_BYTES) {
+        copy_bounded(decompress_status, sizeof(decompress_status), "ARQUIVO ACIMA DO LIMITE (2 MiB)");
+        return;
+    }
+    char path[STORAGE_PATH_BYTES];
+    const ModPackage *pkg = &mod_packages[mod_package_selected];
+    int n = snprintf(path, sizeof(path), "%sT360\\Mods\\%s",
+        storage_devices[pkg->device_index].root, pkg->name);
+    if (n <= 0 || (size_t)n >= sizeof(path)) {
+        copy_bounded(decompress_status, sizeof(decompress_status), "CAMINHO INVALIDO");
+        return;
+    }
+    FILE *file = fopen(path, "rb");
+    if (!file) {
+        copy_bounded(decompress_status, sizeof(decompress_status), "FALHA AO ABRIR PACOTE");
+        return;
+    }
+    if (entry->data_offset > (uint64_t)LONG_MAX ||
+        fseek(file, (long)entry->data_offset, SEEK_SET) != 0) {
+        fclose(file);
+        copy_bounded(decompress_status, sizeof(decompress_status), "FALHA AO POSICIONAR LEITURA");
+        return;
+    }
+    unsigned char *input = (unsigned char *)malloc(entry->compressed_size ? entry->compressed_size : 1);
+    unsigned char *output = (unsigned char *)malloc(entry->uncompressed_size ? entry->uncompressed_size : 1);
+    if (!input || !output) {
+        free(input); free(output); fclose(file);
+        copy_bounded(decompress_status, sizeof(decompress_status), "MEMORIA INSUFICIENTE");
+        return;
+    }
+    if (!read_exact(file, input, entry->compressed_size)) {
+        free(input); free(output); fclose(file);
+        copy_bounded(decompress_status, sizeof(decompress_status), "LEITURA INCOMPLETA");
+        return;
+    }
+    fclose(file);
+    if (entry->compressed_size == entry->uncompressed_size) {
+        if (entry->uncompressed_size)
+            memcpy(output, input, entry->uncompressed_size);
+        decompress_actual_size = entry->uncompressed_size;
+    } else {
+        unsigned long out_len = entry->uncompressed_size;
+        unsigned long in_len = entry->compressed_size;
+        int result = puff(output, &out_len, input, &in_len);
+        if (result != 0) {
+            free(input); free(output);
+            copy_bounded(decompress_status, sizeof(decompress_status), "DEFLATE INVALIDO");
+            return;
+        }
+        decompress_actual_size = (uint32_t)out_len;
+    }
+    free(input);
+    free(output);
+    if (decompress_actual_size != decompress_expected_size) {
+        copy_bounded(decompress_status, sizeof(decompress_status), "TAMANHO DESCOMPACTADO DIFERENTE");
+        return;
+    }
+    copy_bounded(decompress_status, sizeof(decompress_status), "DESCOMPACTADO OK (RAM; NAO SALVO)");
 }
 
 static bool has_tmod_extension(const char *name)
@@ -555,7 +651,7 @@ static void draw_storage(uint32_t height)
 static void draw_package_files(uint32_t height)
 {
     draw_line(80, 238, SELECTED, "ARQUIVOS INTERNOS DO PACOTE");
-    xsdk_text_draw(80, 278, 1, MUTED, "Indice lido do .tmod  |  Conteudo nao extraido");
+    xsdk_text_draw(80, 278, 1, MUTED, "A descompacta o arquivo selecionado apenas na RAM");
     if (!package_entry_count) {
         xsdk_text_draw(80, 360, 2, WHITE, "Nenhum arquivo listado.");
     } else {
@@ -578,11 +674,17 @@ static void draw_package_files(uint32_t height)
         (void)snprintf(detail, sizeof(detail), "Arquivo %u de %u",
             (unsigned)(package_entry_selected + 1), (unsigned)package_entry_count);
         xsdk_text_draw(760, 462, 1, MUTED, detail);
+        xsdk_text_draw(760, 510, 1, SELECTED, decompress_status);
+        if (decompress_expected_size) {
+            (void)snprintf(detail, sizeof(detail), "Resultado: %u / %u bytes",
+                (unsigned)decompress_actual_size, (unsigned)decompress_expected_size);
+            xsdk_text_draw(760, 544, 1, MUTED, detail);
+        }
     }
     if (package_entries_truncated)
         xsdk_text_draw(760, 500, 1, MUTED, "Lista interna limitada.");
     xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED,
-        "CIMA/BAIXO: navegar  B: voltar  |  Somente leitura");
+        "CIMA/BAIXO: navegar  A: descompactar em RAM  B: voltar");
 }
 
 static void draw_packages(uint32_t height)
@@ -774,6 +876,7 @@ int main(void)
                 package_entry_selected = package_entry_selected == 0 ? package_entry_count - 1 : package_entry_selected - 1;
             if (package_entry_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_DOWN))
                 package_entry_selected = (package_entry_selected + 1) % package_entry_count;
+            if (pressed & INPUT_GAMEPAD_A) test_selected_decompression();
             if (pressed & INPUT_GAMEPAD_B) page = PAGE_PACKAGES;
         } else if (page == PAGE_PACKAGES) {
             if (mod_package_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_UP))
