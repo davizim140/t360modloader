@@ -1,0 +1,67 @@
+name: Build T360 ModLoader XEX
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "native/**"
+      - ".github/workflows/build-xex.yml"
+  pull_request:
+    paths:
+      - "native/**"
+      - ".github/workflows/build-xex.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout T360 ModLoader
+        uses: actions/checkout@v4
+
+      - name: Install xsdk build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bison flex texinfo libgmp-dev libmpfr-dev libmpc-dev curl xz-utils patch python3 cmake ninja-build git
+
+      - name: Checkout xsdk
+        uses: actions/checkout@v4
+        with:
+          repository: xenosworks/xsdk
+          path: xsdk
+
+      - name: Build xsdk toolchain
+        run: |
+          PREFIX="$HOME/xsdk-gcc" WORK="$HOME/xsdk-gcc-work" JOBS=2 xsdk/tools/toolchain/build.sh
+
+      - name: Build xsdk runtime
+        run: |
+          make -C xsdk -j2 TOOLCHAIN="$HOME/xsdk-gcc/bin/powerpc-xsdk-elf-"
+
+      - name: Configure T360 native manager
+        run: |
+          cmake -S native -B build/native -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$GITHUB_WORKSPACE/xsdk/cmake/xsdk.cmake" \
+            -DXSDK_TOOLCHAIN="$HOME/xsdk-gcc" \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build T360 manager XEX
+        run: cmake --build build/native --verbose
+
+      - name: Verify XEX output
+        run: |
+          test -s build/native/t360_manager.xex
+          file build/native/t360_manager.xex
+          sha256sum build/native/t360_manager.xex
+
+      - name: Upload XEX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: t360-manager-xex
+          path: build/native/t360_manager.xex
+          if-no-files-found: error
+          retention-days: 14
