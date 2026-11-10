@@ -2,6 +2,8 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "xsdk/gpu.h"
@@ -20,7 +22,6 @@ enum {
     MUTED = 0xFF9BAAB5,
     GREEN = 0xFF7CDA42,
     SELECTED = 0xFFB8F28A,
-    STORAGE_MAX_ENTRIES = 256,
     STORAGE_NAME_BYTES = 96,
     STORAGE_PATH_BYTES = 512,
     STORAGE_VISIBLE = 5,
@@ -52,10 +53,10 @@ static const StorageDevice storage_devices[] = {
 };
 #define DEVICE_TOTAL (sizeof(storage_devices) / sizeof(storage_devices[0]))
 static uint8_t device_present[DEVICE_TOTAL];
-static uint32_t device_count, device_index, storage_count, storage_selected;
-static StorageEntry storage_entries[STORAGE_MAX_ENTRIES];
+static uint32_t device_count, device_index;
+static size_t storage_count, storage_selected, storage_capacity;
+static StorageEntry *storage_entries;
 static int storage_error;
-static bool storage_more;
 static char storage_path[STORAGE_PATH_BYTES];
 
 static void copy_bounded(char *dst, size_t cap, const char *src)
@@ -82,7 +83,6 @@ static void load_current_device(void)
     storage_count = 0;
     storage_selected = 0;
     storage_error = 0;
-    storage_more = false;
     int index = current_device_index();
     if (index < 0) return;
     if (!storage_path[0]) copy_bounded(storage_path, sizeof(storage_path), storage_devices[index].root);
@@ -91,10 +91,26 @@ static void load_current_device(void)
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
         if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) continue;
-        if (storage_count == STORAGE_MAX_ENTRIES) { storage_more = true; break; }
+        if (storage_count == storage_capacity) {
+            size_t next_capacity = storage_capacity ? storage_capacity * 2 : 32;
+            StorageEntry *grown = (StorageEntry *)realloc(storage_entries, next_capacity * sizeof(StorageEntry));
+            if (!grown) { storage_error = ENOMEM; break; }
+            storage_entries = grown;
+            storage_capacity = next_capacity;
+        }
         StorageEntry *item = &storage_entries[storage_count++];
         copy_bounded(item->name, sizeof(item->name), entry->d_name);
         item->is_directory = entry->d_type == DT_DIR;
+#ifdef DT_UNKNOWN
+        if (entry->d_type == DT_UNKNOWN) {
+            char child[STORAGE_PATH_BYTES];
+            int n = snprintf(child, sizeof(child), "%s%s\\", storage_path, entry->d_name);
+            if (n > 0 && (size_t)n < sizeof(child)) {
+                DIR *subdir = opendir(child);
+                if (subdir) { item->is_directory = true; (void)closedir(subdir); }
+            }
+        }
+#endif
     }
     (void)closedir(dir);
 }
@@ -221,7 +237,6 @@ static void draw_storage(uint32_t height)
             (void)snprintf(counter, sizeof(counter), "Item %u de %u",
                 (unsigned)(storage_selected + 1), (unsigned)storage_count);
             xsdk_text_draw(380, 565, 1, MUTED, counter);
-            if (storage_more) xsdk_text_draw(380, 585, 1, MUTED, "Limite de 256 itens nesta pasta.");
         }
     }
     xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED,
