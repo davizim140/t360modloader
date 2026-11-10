@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080d16">
+<meta name="description" content="T360 ModLoader — projeto comunitário de mods para Terraria no Xbox 360 RGH.">
+<title>T360 ModLoader — Terraria no Xbox 360</title>
+<style>
+:root{color-scheme:dark;--bg:#080d16;--panel:#111b2b;--line:#263750;--text:#edf4ff;--muted:#a4b3c8;--blue:#49a8ff;--cyan:#63e0d0;--gold:#f0c36b}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 70% -10%,#17345a 0,transparent 48%),var(--bg);color:var(--text);font:16px/1.6 system-ui,Segoe UI,sans-serif}a{color:inherit} .wrap{width:min(1100px,calc(100% - 36px));margin:auto}nav{height:76px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff12}.brand{display:flex;gap:12px;align-items:center;font-weight:850;letter-spacing:.3px}.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(145deg,#4ab5ff,#1453a0);display:grid;place-items:center;font-weight:950;font-size:22px;box-shadow:0 8px 28px #1475ce55}.links{display:flex;gap:22px;align-items:center;color:var(--muted);font-size:14px}.links a{text-decoration:none}.links a:hover{color:white}.hero{padding:92px 0 76px;max-width:850px}.eyebrow{color:var(--cyan);font-size:12px;letter-spacing:3px;font-weight:850}.hero h1{font-size:clamp(42px,7vw,76px);line-height:1.02;letter-spacing:-2.5px;margin:18px 0}.hero h1 span{color:var(--blue)}.lead{font-size:19px;color:var(--muted);max-width:700px}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:800;border:1px solid #385477;background:#14243a}.btn.primary{background:linear-gradient(120deg,#258ce5,#1761b2);border-color:#398fdf}.btn:hover{filter:brightness(1.15)}.status{display:inline-flex;gap:9px;align-items:center;padding:7px 11px;border:1px solid #695b35;background:#2b2518;color:var(--gold);border-radius:30px;font-size:12px;font-weight:800}.dot{width:7px;height:7px;border-radius:50%;background:var(--gold)}section{padding:48px 0}.section-head{max-width:700px;margin-bottom:25px}.section-head h2{font-size:30px;letter-spacing:-.8px;margin:5px 0 8px}.section-head p,.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card{padding:22px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(150deg,#142238,#0e1725)}.card .symbol{font-size:23px}.card h3{margin:10px 0 5px}.card p{color:var(--muted);font-size:14px;margin:0}.steps{counter-reset:step;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.step{padding:20px;border-left:2px solid var(--blue);background:#101a29;border-radius:0 12px 12px 0}.step b{display:block;margin-bottom:5px}.step p{font-size:14px;color:var(--muted);margin:0}.notice{border:1px solid #5a4b2e;background:#201d17;padding:18px;border-radius:12px;color:#e8d5a9;font-size:14px}.cta{padding:32px;border-radius:18px;background:linear-gradient(120deg,#12335a,#102039);border:1px solid #2e5278;display:flex;justify-content:space-between;align-items:center;gap:20px}.cta h2{margin:0 0 5px}.cta p{color:var(--muted);margin:0}footer{border-top:1px solid #ffffff16;margin-top:60px;padding:25px 0;color:var(--muted);font-size:13px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media(max-width:760px){.grid,.steps{grid-template-columns:1fr}.hero{padding:65px 0 50px}.links{gap:12px}.links a:nth-child(2){display:none}.cta{align-items:flex-start;flex-direction:column}}@media(max-width:430px){.links a:first-child{display:none}.hero h1{letter-spacing:-1.5px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav><a class="brand" href="./" style="text-decoration:none"><span class="logo">T</span><span>T360 MODLOADER</span></a><div class="links"><a href="#sobre">Projeto</a><a href="#arquitetura">Como funciona</a><a href="community/">Comunidade ↗</a></div></nav>
+<main>
+<section class="hero">
+<div class="eyebrow">TERRARIA · XBOX 360 · RGH</div>
+<h1>Uma nova forma de jogar <span>Terraria.</span></h1>
+<p class="lead">Um projeto comunitário para construir um gerenciador nativo de mods para Terraria no Xbox 360, com catálogo online e ferramentas para criadores.</p>
+<p><span class="status"><span class="dot"></span> EM DESENVOLVIMENTO</span></p>
+<div class="actions"><a class="btn primary" href="community/">Explorar comunidade</a><a class="btn" href="https://github.com/davizim140/t360modloader">Ver código no GitHub ↗</a></div>
+</section>
+<section id="sobre">
+<div class="section-head"><div class="eyebrow">O PROJETO</div><h2>Feito para o Xbox 360 RGH</h2><p>O objetivo é oferecer uma experiência nativa no console, sem depender de um navegador para gerenciar a biblioteca de mods.</p></div>
+<div class="grid">
+<article class="card"><div class="symbol">▣</div><h3>Gerenciador em XEX</h3><p>Aplicativo nativo para abrir no Aurora, navegar pelo catálogo e administrar os pacotes instalados.</p></article>
+<article class="card"><div class="symbol">⌁</div><h3>Comunidade</h3><p>Um espaço público para descobrir projetos, consultar detalhes e enviar mods para análise.</p></article>
+<article class="card"><div class="symbol">⬡</div><h3>Pacotes .tmod</h3><p>Formato de pacote documentado com manifesto e verificação SHA-256. A primeira especificação limita o conteúdo a assets.</p></article>
+</div>
+</section>
+<section id="arquitetura">
+<div class="section-head"><div class="eyebrow">FLUXO PLANEJADO</div><h2>Do criador ao console</h2><p>O site é a porta de entrada da comunidade. O aplicativo Xbox será desenvolvido e validado separadamente.</p></div>
+<div class="steps">
+<div class="step"><b>01 · Criar</b><p>O criador prepara um pacote .tmod seguindo a especificação publicada no repositório.</p></div>
+<div class="step"><b>02 · Enviar</b><p>O mod é submetido à comunidade para revisão. Publicações passam por aprovação antes de entrar no catálogo.</p></div>
+<div class="step"><b>03 · Instalar</b><p>Quando o cliente XEX e o sistema de distribuição estiverem implementados, o console poderá acessar os mods aprovados.</p></div>
+</div>
+</section>
+<section>
+<div class="notice"><strong>Estado real do desenvolvimento:</strong> o site e a estrutura inicial de validação de pacotes estão sendo preparados. O gerenciador XEX ainda não está disponível; não existe uma versão compilada confirmada para testar no console. O Terraria também precisa estar instalado no console antes dos testes de integração.</div>
+</section>
+<section>
+<div class="cta"><div><h2>Participe da comunidade</h2><p>Acompanhe os mods enviados e as atualizações do projeto.</p></div><a class="btn primary" href="community/">Abrir comunidade ↗</a></div>
+</section>
+</main>
+<footer><span>© T360 ModLoader · Projeto comunitário independente.</span><span><a href="https://github.com/davizim140/t360modloader">GitHub</a> · <a href="community/">Comunidade</a></span></footer>
+</div>
+</body>
+</html>
