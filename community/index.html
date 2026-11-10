@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080d16">
-<meta name="description" content="Comunidade T360 ModLoader: catálogo e envio de mods para Terraria no Xbox 360.">
+<meta name="description" content="Comunidade T360 ModLoader: catálogo de mods para Terraria no Xbox 360.">
 <title>Comunidade — T360 ModLoader</title>
 <style>
 :root{color-scheme:dark;--bg:#080d16;--panel:#111b2b;--line:#263750;--text:#edf4ff;--muted:#a4b3c8;--blue:#49a8ff;--green:#5de0ad}
@@ -13,10 +13,10 @@
 <body><div class="wrap">
 <header><a class="brand" href="../"><span class="logo" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M13 13l22 22M35 13L13 35" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round"/></svg></span><span>T360 MODLOADER · COMUNIDADE</span></a><a class="back" href="../">← Site do projeto</a></header>
 <main>
-<section class="hero"><div class="eyebrow">CENTRAL DA COMUNIDADE</div><h1>Descubra e compartilhe mods.</h1><p>Explore os pacotes enviados pela comunidade. Cada envio passa por revisão antes de ser listado como aprovado. O gerenciador XEX já abriu em um Xbox 360 RGH; instalação e carregamento de mods ainda estão em desenvolvimento.</p><div class="actions"><a class="btn primary" href="https://github.com/davizim140/t360modloader/issues/new?template=mod_submission.yml"><svg aria-hidden="true" viewBox="0 0 24 24" style="width:17px;height:17px;margin-right:7px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round"><path d="M12 5v14M5 12h14"/></svg>Enviar um mod</a><a class="btn" href="https://github.com/davizim140/t360modloader/blob/main/docs/TMOD_FORMAT.md">Ler formato .tmod ↗</a></div></section>
+<section class="hero"><div class="eyebrow">CENTRAL DA COMUNIDADE</div><h1>Catálogo de mods</h1><p>Esta página será usada para apresentar os mods compatíveis com o T360 ModLoader. O envio de mods está temporariamente desativado enquanto o gerenciador e o sistema de instalação estão em desenvolvimento.</p><div class="actions"><span class="btn" aria-disabled="true" style="opacity:.65;cursor:not-allowed">Envio de mods temporariamente fechado</span><a class="btn" href="https://github.com/davizim140/t360modloader/blob/main/docs/TMOD_FORMAT.md">Consultar formato .tmod ↗</a></div></section>
 <div class="bar"><h2>Catálogo de mods</h2><input class="search" id="search" type="search" placeholder="Pesquisar por nome ou descrição..." aria-label="Pesquisar mods"></div>
-<div class="catalog" id="catalog" aria-live="polite"><div class="empty">Carregando catálogo…</div></div>
-<section class="how"><h2>Como publicar</h2><ol><li>Prepare seu pacote conforme a especificação .tmod do projeto.</li><li>Clique em “Enviar um mod” e preencha o formulário de submissão.</li><li>Inclua um link de download público ou anexe o arquivo na conversa da solicitação, se o GitHub permitir.</li><li>A equipe revisará o pacote. Somente mods aprovados serão adicionados ao catálogo.</li></ol><p class="meta">Não envie executáveis, arquivos suspeitos ou conteúdo que você não tenha autorização para distribuir.</p></section>
+<div class="catalog" id="catalog" aria-live="polite"><div class="empty">O catálogo será preenchido quando houver mods aprovados e o sistema estiver pronto.</div></div>
+<section class="how"><h2>Por que o envio está fechado?</h2><p>O gerenciador ainda não instala nem carrega mods. Por isso, os envios estão pausados para evitar receber arquivos que ainda não podem ser testados no console. Quando essa etapa estiver pronta, a página será atualizada.</p></section>
 </main>
 <footer><span>Catálogo comunitário · T360 ModLoader</span><span><a href="https://github.com/davizim140/t360modloader/issues">Ver envios e discussões no GitHub ↗</a></span></footer>
 </div>
@@ -27,7 +27,7 @@ function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){retur
 function render(){
 const q=search.value.trim().toLowerCase();
 const visible=mods.filter(m=>(String(m.name||'')+' '+String(m.description||'')+' '+String(m.author||'')).toLowerCase().includes(q));
-if(!visible.length){catalog.innerHTML='<div class="empty"><strong>Nenhum mod aprovado no catálogo ainda.</strong><br>Se você criou um mod, envie para análise pela comunidade.</div>';return}
+if(!visible.length){catalog.innerHTML='<div class="empty"><strong>Nenhum mod disponível no momento.</strong><br>O catálogo será atualizado quando a publicação estiver liberada.</div>';return}
 catalog.innerHTML=visible.map(m=>'<article class="mod"><h3>'+esc(m.name)+'</h3><div class="meta">Por '+esc(m.author||'Autor não informado')+' · v'+esc(m.version||'?')+'</div><p>'+esc(m.description||'Sem descrição.')+'</p>'+(m.category?'<span class="tag">'+esc(m.category)+'</span>':'')+(m.download_url?'<p><a class="btn primary" rel="noopener" href="'+esc(m.download_url)+'">Baixar mod ↗</a></p>':'<p class="meta">Download ainda não publicado.</p>')+'</article>').join('');
 }
 search.addEventListener('input',render);
