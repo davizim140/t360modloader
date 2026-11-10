@@ -1,7 +1,5 @@
-#include <dirent.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
 
 #include "xsdk/gpu.h"
 #include "xsdk/kernel.h"
@@ -24,52 +22,14 @@ enum {
 typedef enum {
     PAGE_MENU,
     PAGE_DIAGNOSTICS,
-    PAGE_STORAGE,
     PAGE_ABOUT,
 } Page;
 
 static const char *const menu_items[] = {
     "Diagnostico do console",
-    "Explorador de armazenamento",
     "Sobre o T360 ModLoader",
     "Sair",
 };
-
-
-enum { STORAGE_ROOTS = 3, STORAGE_ITEMS = 8, STORAGE_NAME_BYTES = 56 };
-
-static const char *const storage_roots[STORAGE_ROOTS] = {
-    "usb:\\", "hdd:\\", "game:\\"
-};
-static const char *const storage_labels[STORAGE_ROOTS] = {
-    "USB", "HD interno", "Pasta do jogo"
-};
-static char storage_entries[STORAGE_ITEMS][STORAGE_NAME_BYTES];
-static uint32_t storage_entry_count;
-static uint32_t storage_root_index;
-static bool storage_opened;
-
-static void refresh_storage(void)
-{
-    storage_entry_count = 0;
-    storage_opened = false;
-    DIR *directory = opendir(storage_roots[storage_root_index]);
-    if (!directory)
-        return;
-    storage_opened = true;
-    struct dirent *entry;
-    while (storage_entry_count < STORAGE_ITEMS && (entry = readdir(directory)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-            continue;
-        size_t name_length = strlen(entry->d_name);
-        if (name_length >= STORAGE_NAME_BYTES)
-            name_length = STORAGE_NAME_BYTES - 1;
-        memcpy(storage_entries[storage_entry_count], entry->d_name, name_length);
-        storage_entries[storage_entry_count][name_length] = '\0';
-        ++storage_entry_count;
-    }
-    closedir(directory);
-}
 
 static void draw_line(int32_t x, int32_t y, uint32_t color, const char *text)
 {
@@ -120,21 +80,6 @@ static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t sel
         xsdk_text_draw(92, 424, 2, WHITE, "Interface: renderizacao ativa");
         xsdk_text_draw(92, 500, 1, MUTED, "Este teste nao altera arquivos do console.");
         xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED, "B ou BACK: voltar");
-    } else if (page == PAGE_STORAGE) {
-        draw_line(92, 250, SELECTED, "ARMAZENAMENTO - SOMENTE LEITURA");
-        xsdk_text_draw(92, 304, 2, WHITE, storage_labels[storage_root_index]);
-        xsdk_text_draw(92, 346, 1, MUTED, storage_roots[storage_root_index]);
-        if (!storage_opened) {
-            xsdk_text_draw(92, 410, 2, WHITE, "Unidade indisponivel ou sem midia.");
-        } else if (storage_entry_count == 0) {
-            xsdk_text_draw(92, 410, 2, WHITE, "Diretorio vazio.");
-        } else {
-            for (uint32_t i = 0; i < storage_entry_count; ++i) {
-                xsdk_text_draw(112, 392 + (int32_t)i * 32, 1, WHITE, storage_entries[i]);
-            }
-        }
-        xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED,
-            "ESQ/DIR: unidade   B: voltar   Nenhum arquivo sera alterado");
     } else {
         draw_line(92, 250, SELECTED, "SOBRE");
         xsdk_text_draw(92, 316, 2, WHITE, "T360 ModLoader");
@@ -202,32 +147,17 @@ int main(void)
                 page = PAGE_MENU;
         } else if (page == PAGE_MENU) {
             if (pressed & INPUT_GAMEPAD_DPAD_UP)
-                selected = selected == 0 ? 3 : selected - 1;
+                selected = selected == 0 ? 2 : selected - 1;
             if (pressed & INPUT_GAMEPAD_DPAD_DOWN)
-                selected = (selected + 1) % 4;
+                selected = (selected + 1) % 3;
             if (pressed & INPUT_GAMEPAD_A) {
                 if (selected == 0)
                     page = PAGE_DIAGNOSTICS;
-                else if (selected == 1) {
-                    page = PAGE_STORAGE;
-                    storage_root_index = 0;
-                    refresh_storage();
-                } else if (selected == 2)
+                else if (selected == 1)
                     page = PAGE_ABOUT;
                 else
                     running = false;
             }
-        } else if (page == PAGE_STORAGE) {
-            if (pressed & INPUT_GAMEPAD_DPAD_LEFT) {
-                storage_root_index = storage_root_index == 0 ? STORAGE_ROOTS - 1 : storage_root_index - 1;
-                refresh_storage();
-            }
-            if (pressed & INPUT_GAMEPAD_DPAD_RIGHT) {
-                storage_root_index = (storage_root_index + 1) % STORAGE_ROOTS;
-                refresh_storage();
-            }
-            if (pressed & INPUT_GAMEPAD_B)
-                page = PAGE_MENU;
         } else if (pressed & INPUT_GAMEPAD_B) {
             page = PAGE_MENU;
         }
