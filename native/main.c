@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "xsdk/gpu.h"
 #include "xsdk/kernel.h"
@@ -184,63 +185,92 @@ static void draw_line(int32_t x, int32_t y, uint32_t color, const char *text)
     xsdk_text_draw(x, y, 2, color, text);
 }
 
+
+static void draw_file_details(void)
+{
+    xsdk_text_draw(760, 372, 1, SELECTED, "DETALHES DO ITEM");
+    if (storage_selected >= storage_count) {
+        xsdk_text_draw(760, 410, 1, MUTED, "Nenhum item selecionado.");
+        return;
+    }
+    const StorageEntry *item = &storage_entries[storage_selected];
+    char full_path[STORAGE_PATH_BYTES];
+    int n = snprintf(full_path, sizeof(full_path), "%s%s", storage_path, item->name);
+    char line[160];
+    xsdk_text_draw(760, 410, 1, WHITE, item->name);
+    const char *dot = strrchr(item->name, '.');
+    (void)snprintf(line, sizeof(line), "Extensao: %s",
+        (!item->is_directory && dot && dot[1]) ? dot + 1 : (item->is_directory ? "—" : "Sem extensao"));
+    xsdk_text_draw(760, 444, 1, MUTED, line);
+    xsdk_text_draw(760, 478, 1, MUTED,
+        item->is_directory ? "Tipo: Pasta" : "Tipo: Arquivo");
+    if (item->is_directory) {
+        xsdk_text_draw(760, 512, 1, MUTED, "Tamanho: —");
+    } else if (n > 0 && (size_t)n < sizeof(full_path)) {
+        struct stat info;
+        if (stat(full_path, &info) == 0) {
+            (void)snprintf(line, sizeof(line), "Tamanho: %llu bytes",
+                (unsigned long long)info.st_size);
+            xsdk_text_draw(760, 512, 1, MUTED, line);
+        } else {
+            xsdk_text_draw(760, 512, 1, MUTED, "Tamanho: indisponivel");
+        }
+    } else {
+        xsdk_text_draw(760, 512, 1, MUTED, "Tamanho: caminho longo");
+    }
+    xsdk_text_draw(760, 552, 1, MUTED, "A abre pastas; arquivos nao sao alterados.");
+}
+
 static void draw_storage(uint32_t height)
 {
-    draw_line(92, 250, SELECTED, "DISPOSITIVOS CONECTADOS");
-    xsdk_text_draw(92, 292, 1, MUTED, "Deteccao automatica - somente leitura");
+    draw_line(80, 238, SELECTED, "EXPLORADOR DE ARMAZENAMENTO");
+    xsdk_text_draw(80, 278, 1, MUTED, "Somente leitura  |  ESQ/DIR troca a unidade");
     if (!device_count) {
-        xsdk_text_draw(92, 370, 2, WHITE, "Nenhuma unidade acessivel detectada.");
-        xsdk_text_draw(92, 414, 1, MUTED, "Conecte um dispositivo e pressione A para atualizar.");
+        xsdk_text_draw(80, 360, 2, WHITE, "Nenhuma unidade acessivel detectada.");
+        xsdk_text_draw(80, 404, 1, MUTED, "Conecte um dispositivo e pressione A para atualizar.");
     } else {
         int active = current_device_index();
         if (active >= 0) {
-            xsdk_text_draw(92, 334, 2, SELECTED, storage_devices[active].label);
-            xsdk_text_draw(250, 334, 1, MUTED, storage_devices[active].root);
+            xsdk_text_draw(80, 320, 2, SELECTED, storage_devices[active].label);
+            xsdk_text_draw(210, 324, 1, MUTED, storage_path);
         }
-        xsdk_text_draw(92, 372, 1, MUTED, "Unidades encontradas:");
+        xsdk_text_draw(80, 370, 1, MUTED, "UNIDADES");
         int32_t y = 400;
         for (uint32_t i = 0; i < DEVICE_TOTAL; ++i) {
             if (!device_present[i]) continue;
             char label[32];
-            const char *name = storage_devices[i].label;
-            unsigned p = 0;
-            label[p++] = (active == (int)i) ? '>' : ' ';
-            label[p++] = ' ';
-            while (*name && p < sizeof(label) - 1) label[p++] = *name++;
-            label[p] = '\0';
-            xsdk_text_draw(112, y, 1, active == (int)i ? SELECTED : WHITE, label);
-            y += 25;
+            (void)snprintf(label, sizeof(label), "%c %s",
+                active == (int)i ? '>' : ' ', storage_devices[i].label);
+            xsdk_text_draw(88, y, 1, active == (int)i ? SELECTED : WHITE, label);
+            y += 28;
         }
-        xsdk_text_draw(360, 372, 1, MUTED, "Conteudo da pasta:");
-        xsdk_text_draw(360, 394, 1, MUTED, storage_path);
+        xsdk_text_draw(330, 370, 1, MUTED, "CONTEUDO DA PASTA");
         if (storage_error) {
-            xsdk_text_draw(360, 430, 1, WHITE, "Falha ao ler pasta.");
+            xsdk_text_draw(330, 410, 1, WHITE, "Falha ao ler pasta.");
         } else if (!storage_count) {
-            xsdk_text_draw(360, 430, 1, WHITE, "Pasta vazia.");
+            xsdk_text_draw(330, 410, 1, WHITE, "Pasta vazia.");
         } else {
             size_t first = storage_selected >= STORAGE_VISIBLE ? storage_selected - STORAGE_VISIBLE + 1 : 0;
             size_t end = first + STORAGE_VISIBLE;
             if (end > storage_count) end = storage_count;
             for (size_t i = first; i < end; ++i) {
-                char line[STORAGE_NAME_BYTES + 4];
-                unsigned p = 0;
-                line[p++] = i == storage_selected ? '>' : ' ';
-                line[p++] = ' ';
-                const char *name = storage_entries[i].name;
-                while (*name && p < sizeof(line) - 2) line[p++] = *name++;
-                if (storage_entries[i].is_directory && p < sizeof(line) - 1) line[p++] = '/';
-                line[p] = '\0';
-                xsdk_text_draw(380, 430 + (int32_t)(i - first) * 25, 1,
+                char line[STORAGE_NAME_BYTES + 8];
+                (void)snprintf(line, sizeof(line), "%c %s%s",
+                    i == storage_selected ? '>' : ' ',
+                    storage_entries[i].name,
+                    storage_entries[i].is_directory ? "/" : "");
+                xsdk_text_draw(340, 408 + (int32_t)(i - first) * 29, 1,
                     i == storage_selected ? SELECTED : WHITE, line);
             }
             char counter[48];
             (void)snprintf(counter, sizeof(counter), "Item %u de %u",
                 (unsigned)(storage_selected + 1), (unsigned)storage_count);
-            xsdk_text_draw(380, 565, 1, MUTED, counter);
+            xsdk_text_draw(340, 558, 1, MUTED, counter);
+            draw_file_details();
         }
     }
     xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED,
-        "ESQ/DIR: trocar unidade  CIMA/BAIXO: navegar  A: abrir  B: voltar");
+        "CIMA/BAIXO: navegar  A: abrir pasta  B: voltar  ESQ/DIR: unidade");
 }
 
 static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t selected,
@@ -254,31 +284,28 @@ static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t sel
     }
 
     xsdk_gpu_set_target(width, height);
-    draw_line(72, 54, GREEN, "T360 MODLOADER");
-    draw_line(72, 104, WHITE, "Gerenciador nativo para Xbox 360 RGH");
-    xsdk_text_draw(72, 166, 1, MUTED, "Versao inicial - interface e entrada do controle");
+    draw_line(72, 48, GREEN, "T360 MODLOADER");
+    xsdk_text_draw(72, 94, 1, MUTED, "TERRARIA XBOX 360  |  GERENCIADOR NATIVO RGH");
+    xsdk_text_draw(72, 144, 1, MUTED, "BUILD EXPERIMENTAL  •  LEITURA SEGURA");
 
     if (page == PAGE_MENU) {
-        xsdk_text_draw(92, 250, 2, MUTED, "MENU PRINCIPAL");
+        draw_line(80, 232, SELECTED, "CENTRAL DO PROJETO");
+        xsdk_text_draw(80, 278, 1, MUTED, "Selecione uma ferramenta");
         for (uint32_t i = 0; i < sizeof menu_items / sizeof menu_items[0]; ++i) {
             const uint32_t color = i == selected ? SELECTED : WHITE;
-            char line[96];
-            const char *prefix = i == selected ? "> " : "  ";
-            const char *label = menu_items[i];
-            unsigned j = 0;
-            while (prefix[j] && j < sizeof line - 1) {
-                line[j] = prefix[j];
-                ++j;
-            }
-            unsigned k = 0;
-            while (label[k] && j < sizeof line - 1) {
-                line[j++] = label[k++];
-            }
-            line[j] = '\0';
-            xsdk_text_draw(112, 316 + (int32_t)i * 58, 2, color, line);
+            char line[112];
+            (void)snprintf(line, sizeof(line), "%c  %s",
+                i == selected ? '>' : ' ', menu_items[i]);
+            xsdk_text_draw(104, 334 + (int32_t)i * 54, 2, color, line);
         }
+        xsdk_text_draw(760, 278, 1, SELECTED, "ESTADO DO SISTEMA");
+        xsdk_text_draw(760, 322, 1, WHITE, "Interface: operacional");
+        xsdk_text_draw(760, 360, 1, WHITE, "Armazenamento: explorador");
+        xsdk_text_draw(760, 398, 1, MUTED, "Mods: carregamento ainda nao");
+        xsdk_text_draw(760, 424, 1, MUTED, "implementado");
+        xsdk_text_draw(760, 490, 1, MUTED, "Nenhum arquivo e modificado");
         xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED,
-            "D-PAD: navegar   A: selecionar   BACK: sair");
+            "D-PAD: navegar   A: abrir   BACK: sair");
     } else if (page == PAGE_DIAGNOSTICS) {
         draw_line(92, 250, SELECTED, "DIAGNOSTICO");
         xsdk_text_draw(92, 316, 2, WHITE,
