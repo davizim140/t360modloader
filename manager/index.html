@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10151f">
+<title>T360 Mod Manager</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1018;--panel:#131c29;--line:#26364b;--text:#edf4ff;--muted:#9aabc0;--accent:#42a5ff;--good:#48d597;--bad:#ff7078}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#17283d 0,#0b1018 55%);color:var(--text);font:15px system-ui,Segoe UI,sans-serif;min-height:100vh}
+main{width:min(1000px,calc(100% - 28px));margin:36px auto}header{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:24px}.brand{display:flex;gap:13px;align-items:center}.logo{width:46px;height:46px;border-radius:13px;background:linear-gradient(145deg,#3aa4ff,#1554a0);display:grid;place-items:center;font-weight:900;font-size:20px}.eyebrow{color:var(--accent);font-size:11px;font-weight:800;letter-spacing:2px}.title{font-size:25px;font-weight:800}.sub{color:var(--muted);font-size:13px}
+.panel{background:rgba(19,28,41,.94);border:1px solid var(--line);border-radius:17px;padding:20px;margin:15px 0;box-shadow:0 12px 38px #0003}.drop{border:1px dashed #45617e;border-radius:13px;padding:26px;text-align:center;background:#101a27}.drop.drag{border-color:var(--accent);background:#142b42}.drop strong{display:block;font-size:17px;margin-bottom:6px}.drop p{color:var(--muted);margin:0 0 14px}.btn{border:1px solid #3b5878;background:#1b3550;color:white;padding:10px 14px;border-radius:9px;font-weight:700;cursor:pointer}.btn:hover{background:#24496d}.btn.primary{background:#176db5;border-color:#318bd7}.btn.danger{background:#54232b;border-color:#88414a}.btn:disabled{opacity:.45;cursor:not-allowed}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.toolbar h2{font-size:17px;margin:0}.count{color:var(--muted);font-size:13px}.list{display:grid;gap:10px;margin-top:16px}.item{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#101824}.info{min-width:0}.name{font-weight:750;overflow-wrap:anywhere}.meta{font-size:12px;color:var(--muted);margin-top:4px}.actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.state{font-size:11px;font-weight:800;padding:5px 8px;border-radius:20px;background:#173d31;color:var(--good)}.state.off{background:#313b49;color:#aebdce}.empty{text-align:center;padding:28px;color:var(--muted)}.notice{font-size:12px;color:var(--muted);line-height:1.55}.status{min-height:22px;margin-top:12px;font-size:13px}.status.good{color:var(--good)}.status.bad{color:var(--bad)}footer{color:#8294aa;font-size:12px;text-align:center;margin:24px 0}.hidden{display:none!important}@media(max-width:620px){header{align-items:flex-start}.item{align-items:flex-start;flex-direction:column}.actions{justify-content:flex-start}.title{font-size:21px}}
+</style>
+</head>
+<body>
+<main>
+<header><div class="brand"><div class="logo">T</div><div><div class="eyebrow">TERRARIA XBOX 360</div><div class="title">T360 Mod Manager</div><div class="sub">Gerenciador de pacotes .tmod · versão inicial</div></div></div><span class="state off">BROWSER BUILD</span></header>
+<section class="panel">
+<div class="drop" id="drop">
+<strong>Importar pacote de mod</strong>
+<p>Selecione ou arraste um arquivo .tmod para validar e guardar neste navegador.</p>
+<input id="file" type="file" accept=".tmod,application/zip" class="hidden">
+<button class="btn primary" id="choose">Selecionar arquivo .tmod</button>
+</div>
+<div id="status" class="status" role="status" aria-live="polite"></div>
+</section>
+<section class="panel">
+<div class="toolbar"><h2>Biblioteca de mods</h2><div><span class="count" id="count">0 pacotes</span> <button class="btn" id="export" disabled>Exportar backup</button></div></div>
+<div id="list" class="list"><div class="empty">Nenhum pacote importado ainda.</div></div>
+</section>
+<section class="panel">
+<strong>Limites desta versão</strong>
+<p class="notice">Os pacotes são validados e armazenados no IndexedDB deste navegador. Ativar/desativar altera somente o estado da biblioteca local. Esta página ainda não instala arquivos no Xbox 360, não altera o GOD e não injeta código no Terraria. O formato .tmod atual aceita somente mod.json e assets; código executável não é permitido.</p>
+</section>
+<footer>T360 Mod Manager · armazenamento local do navegador · sem envio de arquivos para servidor</footer>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+'use strict';
+const DB_NAME='t360-mod-manager', STORE='packages', MAX_ENTRIES=2000, MAX_BYTES=64*1024*1024;
+const $=id=>document.getElementById(id);
+let db;
+function openDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,1);req.onupgradeneeded=()=>req.result.createObjectStore(STORE,{keyPath:'id'});req.onsuccess=()=>{db=req.result;resolve(db)};req.onerror=()=>reject(req.error)})}
+function tx(mode='readonly'){return db.transaction(STORE,mode).objectStore(STORE)}
+function all(){return new Promise((resolve,reject)=>{const r=tx().getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
+function put(item){return new Promise((resolve,reject)=>{const r=tx('readwrite').put(item);r.onsuccess=resolve;r.onerror=()=>reject(r.error)})}
+function remove(id){return new Promise((resolve,reject)=>{const r=tx('readwrite').delete(id);r.onsuccess=resolve;r.onerror=()=>reject(r.error)})}
+function status(msg,kind=''){ $('status').textContent=msg;$('status').className='status '+kind }
+function safePath(name){if(!name||name.includes('\\')||name.startsWith('/')||/^[A-Za-z]:/.test(name))return false;const parts=name.split('/');return parts.every(p=>p&&p!=='.'&&p!=='..')}
+async function digest(bytes){const hash=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+async function validate(file){
+ if(!window.JSZip)throw Error('Biblioteca ZIP não carregou. Verifique a conexão e recarregue a página.');
+ const zip=await JSZip.loadAsync(file,{checkCRC32:true});
+ const entries=Object.values(zip.files).filter(x=>!x.dir);
+ if(!entries.length||entries.length>MAX_ENTRIES)throw Error('Quantidade de arquivos fora do limite (1–2000).');
+ let total=0;const names=new Set();
+ for(const e of entries){const n=e.unsafeOriginalName||e.name;if(!safePath(n))throw Error('Caminho inseguro no pacote: '+n);if(names.has(n))throw Error('Caminho duplicado: '+n);names.add(n);if(n!=='mod.json'&&!n.startsWith('assets/'))throw Error('Arquivo fora de assets/: '+n);total+=e._data&&e._data.uncompressedSize||0;if(total>MAX_BYTES)throw Error('Pacote excede 64 MiB descompactados.');if(e.unixPermissions&&String(e.unixPermissions).startsWith('120'))throw Error('Links simbólicos não são permitidos.')}
+ if(!names.has('mod.json'))throw Error('mod.json não encontrado.');
+ const manifest=JSON.parse(await zip.file('mod.json').async('string'));
+ if(!manifest||Array.isArray(manifest)||typeof manifest!=='object')throw Error('mod.json deve conter um objeto JSON.');
+ if(manifest.format_version!==1)throw Error('format_version deve ser 1.');
+ if(typeof manifest.id!=='string'||!/^[a-z0-9][a-z0-9._-]{1,63}$/.test(manifest.id))throw Error('ID inválido.');
+ if(typeof manifest.name!=='string'||manifest.name.trim().length<1||manifest.name.trim().length>80)throw Error('Nome deve ter 1–80 caracteres.');
+ if(typeof manifest.version!=='string'||manifest.version.length<1||manifest.version.length>32)throw Error('Versão deve ter 1–32 caracteres.');
+ if(!manifest.files||Array.isArray(manifest.files)||typeof manifest.files!=='object')throw Error('files deve ser um objeto.');
+ const listed=new Set();
+ for(const [path,expected] of Object.entries(manifest.files)){if(!safePath(path)||!path.startsWith('assets/'))throw Error('Caminho de asset inválido: '+path);if(!names.has(path))throw Error('Asset não encontrado: '+path);if(typeof expected!=='string'||!/^[0-9a-f]{64}$/.test(expected))throw Error('SHA-256 inválido: '+path);const bytes=await zip.file(path).async('uint8array');if(await digest(bytes)!==expected)throw Error('SHA-256 não confere: '+path);listed.add(path)}
+ const assets=[...names].filter(n=>n.startsWith('assets/'));if(assets.some(n=>!listed.has(n)))throw Error('Existe asset não declarado no manifesto.');
+ return {manifest,assetCount:listed.size};
+}
+async function importFile(file){if(!file)return;if(!file.name.toLowerCase().endsWith('.tmod')){status('Selecione um arquivo com extensão .tmod.','bad');return}status('Validando pacote…');try{const result=await validate(file);const existing=await new Promise((resolve,reject)=>{const r=tx().get(result.manifest.id);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});if(existing)throw Error('Já existe um mod com este ID: '+result.manifest.id);await put({id:result.manifest.id,name:result.manifest.name,version:result.manifest.version,assetCount:result.assetCount,enabled:false,blob:file,addedAt:new Date().toISOString()});status('Pacote validado e importado: '+result.manifest.name,'good');await render()}catch(e){status('Importação recusada: '+e.message,'bad')}}
+async function render(){const items=(await all()).sort((a,b)=>a.name.localeCompare(b.name));$('count').textContent=items.length+' pacote(s)';$('export').disabled=!items.length;const list=$('list');list.replaceChildren();if(!items.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='Nenhum pacote importado ainda.';list.append(empty);return}for(const item of items){const row=document.createElement('article');row.className='item';const info=document.createElement('div');info.className='info';const name=document.createElement('div');name.className='name';name.textContent=item.name;const meta=document.createElement('div');meta.className='meta';meta.textContent=item.id+' · v'+item.version+' · '+item.assetCount+' asset(s)';info.append(name,meta);const actions=document.createElement('div');actions.className='actions';const badge=document.createElement('span');badge.className='state'+(item.enabled?'':' off');badge.textContent=item.enabled?'ATIVO':'DESATIVADO';const toggle=document.createElement('button');toggle.className='btn';toggle.textContent=item.enabled?'Desativar':'Ativar';toggle.addEventListener('click',async()=>{item.enabled=!item.enabled;await put(item);await render()});const download=document.createElement('button');download.className='btn';download.textContent='Baixar';download.addEventListener('click',()=>saveBlob(item.blob,item.id+'.tmod'));const del=document.createElement('button');del.className='btn danger';del.textContent='Remover';del.addEventListener('click',async()=>{if(confirm('Remover '+item.name+' desta biblioteca local?')){await remove(item.id);await render();status('Pacote removido da biblioteca.','good')}});actions.append(badge,toggle,download,del);row.append(info,actions);list.append(row)}}
+function saveBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500)}
+$('choose').addEventListener('click',()=>$('file').click());$('file').addEventListener('change',e=>{importFile(e.target.files[0]);e.target.value=''});
+$('drop').addEventListener('dragover',e=>{e.preventDefault();$('drop').classList.add('drag')});$('drop').addEventListener('dragleave',()=>$('drop').classList.remove('drag'));$('drop').addEventListener('drop',e=>{e.preventDefault();$('drop').classList.remove('drag');importFile(e.dataTransfer.files[0])});
+$('export').addEventListener('click',async()=>{const items=await all();const zip=new JSZip();for(const item of items)zip.file(item.id+'.tmod',item.blob);const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE'});saveBlob(blob,'t360-mod-backup.zip');status('Backup da biblioteca gerado.','good')});
+openDb().then(render).catch(e=>status('Falha ao abrir armazenamento local: '+e.message,'bad'));
+</script>
+</body>
+</html>
