@@ -61,8 +61,11 @@ static void refresh_storage(void)
     while (storage_entry_count < STORAGE_ITEMS && (entry = readdir(directory)) != NULL) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
-        strncpy(storage_entries[storage_entry_count], entry->d_name, STORAGE_NAME_BYTES - 1);
-        storage_entries[storage_entry_count][STORAGE_NAME_BYTES - 1] = '\\0';
+        size_t name_length = strlen(entry->d_name);
+        if (name_length >= STORAGE_NAME_BYTES)
+            name_length = STORAGE_NAME_BYTES - 1;
+        memcpy(storage_entries[storage_entry_count], entry->d_name, name_length);
+        storage_entries[storage_entry_count][name_length] = '\0';
         ++storage_entry_count;
     }
     closedir(directory);
