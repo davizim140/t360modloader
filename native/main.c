@@ -26,6 +26,8 @@ enum {
     STORAGE_NAME_BYTES = 96,
     STORAGE_PATH_BYTES = 512,
     STORAGE_VISIBLE = 5,
+    MAX_MOD_PACKAGES = 128,
+    PACKAGE_VISIBLE = 6,
 };
 
 typedef enum {
@@ -33,6 +35,7 @@ typedef enum {
     PAGE_DIAGNOSTICS,
     PAGE_ABOUT,
     PAGE_STORAGE,
+    PAGE_PACKAGES,
 } Page;
 
 typedef struct {
@@ -40,10 +43,21 @@ typedef struct {
     bool is_directory;
 } StorageEntry;
 
+typedef struct {
+    char name[STORAGE_NAME_BYTES];
+    char device[16];
+    unsigned long long size;
+} ModPackage;
+
+static ModPackage mod_packages[MAX_MOD_PACKAGES];
+static size_t mod_package_count, mod_package_selected;
+static bool mod_packages_truncated;
+
 static const char *const menu_items[] = {
     "Diagnostico do console",
     "Sobre o T360 ModLoader",
     "Armazenamento (somente leitura)",
+    "Pacotes .tmod (somente leitura)",
     "Sair",
 };
 
@@ -137,6 +151,51 @@ static void scan_storage_devices(void)
         if (active >= 0) copy_bounded(storage_path, sizeof(storage_path), storage_devices[active].root);
     }
     load_current_device();
+}
+
+static bool has_tmod_extension(const char *name)
+{
+    const char *dot = strrchr(name, '.');
+    if (!dot || strlen(dot) != 5) return false;
+    return (dot[1] == 't' || dot[1] == 'T') &&
+        (dot[2] == 'm' || dot[2] == 'M') &&
+        (dot[3] == 'o' || dot[3] == 'O') &&
+        (dot[4] == 'd' || dot[4] == 'D');
+}
+
+static void scan_mod_packages(void)
+{
+    mod_package_count = 0;
+    mod_package_selected = 0;
+    mod_packages_truncated = false;
+    for (uint32_t i = 0; i < DEVICE_TOTAL; ++i) {
+        if (!device_present[i]) continue;
+        char folder[STORAGE_PATH_BYTES];
+        int n = snprintf(folder, sizeof(folder), "%sT360\\Mods\\", storage_devices[i].root);
+        if (n <= 0 || (size_t)n >= sizeof(folder)) continue;
+        DIR *dir = opendir(folder);
+        if (!dir) continue;
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (!has_tmod_extension(entry->d_name)) continue;
+            if (mod_package_count >= MAX_MOD_PACKAGES) {
+                mod_packages_truncated = true;
+                break;
+            }
+            char full_path[STORAGE_PATH_BYTES];
+            n = snprintf(full_path, sizeof(full_path), "%s%s", folder, entry->d_name);
+            if (n <= 0 || (size_t)n >= sizeof(full_path)) continue;
+            struct stat info;
+            if (stat(full_path, &info) != 0 || (info.st_mode & S_IFDIR)) continue;
+            ModPackage *item = &mod_packages[mod_package_count++];
+            copy_bounded(item->name, sizeof(item->name), entry->d_name);
+            copy_bounded(item->device, sizeof(item->device), storage_devices[i].label);
+            item->size = (unsigned long long)info.st_size;
+        }
+        (void)closedir(dir);
+        if (mod_packages_truncated) break;
+    }
+    xsdk_log_write("T360: found %u .tmod candidate(s)", (unsigned)mod_package_count);
 }
 
 static void select_device(int direction)
@@ -273,6 +332,46 @@ static void draw_storage(uint32_t height)
         "CIMA/BAIXO: navegar  A: abrir pasta  B: voltar  ESQ/DIR: unidade");
 }
 
+static void draw_packages(uint32_t height)
+{
+    draw_line(80, 238, SELECTED, "PACOTES LOCAIS .TMOD");
+    xsdk_text_draw(80, 278, 1, MUTED, "Busca somente leitura em T360\\Mods\\ nas unidades acessiveis");
+    if (!mod_package_count) {
+        xsdk_text_draw(80, 360, 2, WHITE, "Nenhum pacote .tmod encontrado.");
+        xsdk_text_draw(80, 408, 1, MUTED, "Pasta esperada: T360\\Mods\\ na raiz do USB ou HDD.");
+        xsdk_text_draw(80, 444, 1, MUTED, "Esta etapa apenas detecta arquivos; nao valida nem instala.");
+    } else {
+        size_t first = mod_package_selected >= PACKAGE_VISIBLE ?
+            mod_package_selected - PACKAGE_VISIBLE + 1 : 0;
+        size_t end = first + PACKAGE_VISIBLE;
+        if (end > mod_package_count) end = mod_package_count;
+        for (size_t i = first; i < end; ++i) {
+            char line[STORAGE_NAME_BYTES + 24];
+            (void)snprintf(line, sizeof(line), "%c %s",
+                i == mod_package_selected ? '>' : ' ', mod_packages[i].name);
+            xsdk_text_draw(96, 340 + (int32_t)(i - first) * 38, 1,
+                i == mod_package_selected ? SELECTED : WHITE, line);
+        }
+        const ModPackage *item = &mod_packages[mod_package_selected];
+        char detail[160];
+        xsdk_text_draw(760, 340, 1, SELECTED, "PACOTE DETECTADO");
+        (void)snprintf(detail, sizeof(detail), "Unidade: %s", item->device);
+        xsdk_text_draw(760, 382, 1, WHITE, detail);
+        (void)snprintf(detail, sizeof(detail), "Tamanho: %llu bytes", item->size);
+        xsdk_text_draw(760, 420, 1, WHITE, detail);
+        xsdk_text_draw(760, 470, 1, MUTED, "Integridade: nao verificada");
+        xsdk_text_draw(760, 502, 1, MUTED, "Instalacao: indisponivel");
+        char counter[48];
+        (void)snprintf(counter, sizeof(counter), "Pacote %u de %u",
+            (unsigned)(mod_package_selected + 1), (unsigned)mod_package_count);
+        xsdk_text_draw(96, 590, 1, MUTED, counter);
+    }
+    if (mod_packages_truncated)
+        xsdk_text_draw(760, 550, 1, MUTED, "Lista limitada a 128 pacotes.");
+    xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED,
+        "CIMA/BAIXO: navegar  B: voltar  |  Somente leitura");
+}
+
 static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t selected,
     uint32_t controller_status)
 {
@@ -321,8 +420,10 @@ static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t sel
         xsdk_text_draw(92, 424, 2, WHITE, "O carregamento de mods ainda nao esta implementado.");
         xsdk_text_draw(92, 478, 2, WHITE, "Nenhum arquivo do Terraria e modificado.");
         xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED, "B ou BACK: voltar");
-    } else {
+    } else if (page == PAGE_STORAGE) {
         draw_storage(height);
+    } else {
+        draw_packages(height);
     }
 
     xsdk_gpu_resolve(address, width, height, CLEAR_COLOR);
@@ -383,9 +484,9 @@ int main(void)
                 page = PAGE_MENU;
         } else if (page == PAGE_MENU) {
             if (pressed & INPUT_GAMEPAD_DPAD_UP)
-                selected = selected == 0 ? 3 : selected - 1;
+                selected = selected == 0 ? 4 : selected - 1;
             if (pressed & INPUT_GAMEPAD_DPAD_DOWN)
-                selected = (selected + 1) % 4;
+                selected = (selected + 1) % 5;
             if (pressed & INPUT_GAMEPAD_A) {
                 if (selected == 0)
                     page = PAGE_DIAGNOSTICS;
@@ -394,10 +495,19 @@ int main(void)
                 else if (selected == 2) {
                     page = PAGE_STORAGE;
                     scan_storage_devices();
+                } else if (selected == 3) {
+                    page = PAGE_PACKAGES;
+                    scan_storage_devices();
+                    scan_mod_packages();
                 } else {
                     running = false;
                 }
             }
+        } else if (page == PAGE_PACKAGES) {
+            if (mod_package_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_UP))
+                mod_package_selected = mod_package_selected == 0 ? mod_package_count - 1 : mod_package_selected - 1;
+            if (mod_package_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_DOWN))
+                mod_package_selected = (mod_package_selected + 1) % mod_package_count;
         } else if (page == PAGE_STORAGE) {
             if (pressed & INPUT_GAMEPAD_DPAD_LEFT) select_device(-1);
             if (pressed & INPUT_GAMEPAD_DPAD_RIGHT) select_device(1);
