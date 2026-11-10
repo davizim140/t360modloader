@@ -36,7 +36,7 @@ jobs:
 
       - name: Build xsdk toolchain
         run: |
-          PREFIX="$HOME/xsdk-gcc" WORK="$HOME/xsdk-gcc-work" JOBS=2 xsdk/tools/toolchain/build.sh
+          PREFIX="$HOME/xsdk-gcc" WORK="$HOME/xsdk-gcc-work" JOBS=2 bash xsdk/tools/toolchain/build.sh
 
       - name: Build xsdk runtime
         run: |
