@@ -9,20 +9,24 @@ Projeto comunitário para desenvolver um gerenciador nativo de mods para Terrari
 
 ## Estado atual
 
-- Site institucional e catálogo comunitário: implementados.
-- Envio de mods: formulário GitHub Issues; publicações exigem revisão manual.
+- Site institucional e catálogo comunitário publicados.
+- Envio de mods pelo formulário GitHub Issues; publicações exigem revisão manual.
 - Catálogo: `community/mods.json`; apenas itens com `approved: true` aparecem.
 - Formato inicial de pacote: [docs/TMOD_FORMAT.md](docs/TMOD_FORMAT.md).
-- Validador e testes: `tools/` e `tests/`.
-- Gerenciador nativo Xbox 360: interface C em `native/`, com menu, navegação pelo controle e telas de diagnóstico/sobre.
-- Build XEX: concluído com sucesso no GitHub Actions, execução [#3](https://github.com/davizim140/t360modloader/actions/runs/42874416867), usando xsdk.
-- Teste em hardware: usuário confirmou que o XEX abriu no Xbox 360 RGH e que a navegação pelos botões do controle funcionou.
-- Limite do teste: isso valida a inicialização da interface e a entrada do controle; não valida ainda acesso a arquivos, instalação ou carregamento de mods.
-- Carregamento, instalação e ativação de mods no Terraria: ainda não implementados.
+- Validador e testes automatizados: `tools/` e `tests/`.
+- **Gerenciador nativo XEX:** primeira compilação concluída com xsdk no GitHub Actions, na [execução #3](https://github.com/davizim140/t360modloader/actions/runs/42874416867).
+- **Teste em Xbox 360 RGH:** o usuário confirmou que o XEX abriu e que D-pad, A, B e BACK funcionaram.
+- **Em desenvolvimento:** explorador de armazenamento somente leitura para USB, HD interno e pasta do jogo. A nova compilação está em andamento na [execução #5](https://github.com/davizim140/t360modloader/actions/runs/42882153362); essa função ainda não foi testada no console.
+- **Ainda não implementado:** instalação de pacotes, integração com os arquivos do Terraria e carregamento/ativação de mods no jogo.
+- Terraria ainda não foi instalado no console para testes de integração.
 
 ## Build nativo
 
-O workflow **Build T360 ModLoader XEX** compila o gerenciador com xsdk e publica o arquivo `.xex` como artefato. A execução #3 foi concluída com sucesso e o usuário confirmou a inicialização e a navegação no Xbox 360 RGH. Isso ainda não significa que o carregamento de mods esteja implementado.
+O workflow **Build T360 ModLoader XEX** compila o gerenciador com xsdk e publica o arquivo `.xex` como artefato. A compilação #3 foi bem-sucedida e o XEX foi executado no Xbox 360 RGH. O teste confirmou somente a inicialização da interface e a navegação do controle; não confirma instalação ou carregamento de mods.
+
+## Formato e segurança
+
+A especificação inicial `.tmod` e o validador ficam em `docs/`, `tools/` e `tests/`. O formato inicial é limitado a assets e metadados; não executa scripts nem patches.
 
 ## Publicação no GitHub Pages
 
