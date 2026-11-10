@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080d16">
+<meta name="description" content="Comunidade T360 ModLoader: catálogo e envio de mods para Terraria no Xbox 360.">
+<title>Comunidade — T360 ModLoader</title>
+<style>
+:root{color-scheme:dark;--bg:#080d16;--panel:#111b2b;--line:#263750;--text:#edf4ff;--muted:#a4b3c8;--blue:#49a8ff;--green:#5de0ad}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 80% 0,#17345a 0,transparent 44%),var(--bg);color:var(--text);font:15px/1.55 system-ui,Segoe UI,sans-serif}.wrap{width:min(1050px,calc(100% - 32px));margin:auto}a{color:inherit}header{padding:25px 0;border-bottom:1px solid #ffffff18;display:flex;justify-content:space-between;align-items:center;gap:16px}.brand{display:flex;align-items:center;gap:11px;text-decoration:none;font-weight:850}.logo{width:40px;height:40px;border-radius:11px;background:linear-gradient(145deg,#4ab5ff,#1453a0);display:grid;place-items:center;font-size:21px}.back{color:var(--muted);text-decoration:none;font-size:13px}.hero{padding:55px 0 30px}.eyebrow{color:#63e0d0;letter-spacing:2px;font-weight:850;font-size:11px}.hero h1{font-size:clamp(34px,6vw,54px);letter-spacing:-1.5px;margin:8px 0}.hero p{color:var(--muted);max-width:690px;font-size:16px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.btn{border:1px solid #385477;border-radius:9px;background:#14243a;padding:11px 15px;text-decoration:none;font-weight:800;display:inline-flex;align-items:center;justify-content:center}.btn.primary{background:#176db5;border-color:#398fdf}.btn:hover{filter:brightness(1.15)}.bar{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:25px 0 16px}.bar h2{margin:0;font-size:21px}.search{width:min(340px,100%);background:#101a29;border:1px solid var(--line);border-radius:9px;padding:11px 13px;color:white;font:inherit}.catalog{display:grid;grid-template-columns:repeat(2,1fr);gap:13px}.mod{border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,#142238,#0e1725);padding:18px}.mod h3{margin:0 0 5px}.mod p{color:var(--muted);margin:7px 0}.meta{color:#8fa4be;font-size:12px}.tag{display:inline-block;border:1px solid #2d526f;background:#122b40;color:#9ed4ff;border-radius:20px;padding:3px 8px;font-size:11px;margin-top:8px}.empty,.error{grid-column:1/-1;text-align:center;padding:40px 20px;border:1px dashed #354b65;border-radius:14px;color:var(--muted);background:#101a29}.error{color:#ffb3b3}.how{margin-top:30px;padding:20px;border:1px solid var(--line);border-radius:14px;background:#101a29}.how h2{margin-top:0}.how li{margin:8px 0;color:var(--muted)}footer{margin-top:55px;padding:22px 0;border-top:1px solid #ffffff18;color:var(--muted);font-size:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media(max-width:650px){.catalog{grid-template-columns:1fr}.hero{padding-top:40px}header{align-items:flex-start}}
+</style>
+</head>
+<body><div class="wrap">
+<header><a class="brand" href="../"><span class="logo">T</span><span>T360 MODLOADER · COMUNIDADE</span></a><a class="back" href="../">← Site do projeto</a></header>
+<main>
+<section class="hero"><div class="eyebrow">CENTRAL DA COMUNIDADE</div><h1>Descubra e compartilhe mods.</h1><p>Explore os pacotes enviados pela comunidade. Cada envio passa por revisão antes de ser listado como aprovado.</p><div class="actions"><a class="btn primary" href="https://github.com/davizim140/t360modloader/issues/new?template=mod_submission.yml">＋ Enviar um mod</a><a class="btn" href="https://github.com/davizim140/t360modloader/blob/main/docs/TMOD_FORMAT.md">Ler formato .tmod ↗</a></div></section>
+<div class="bar"><h2>Catálogo de mods</h2><input class="search" id="search" type="search" placeholder="Pesquisar por nome ou descrição..." aria-label="Pesquisar mods"></div>
+<div class="catalog" id="catalog" aria-live="polite"><div class="empty">Carregando catálogo…</div></div>
+<section class="how"><h2>Como publicar</h2><ol><li>Prepare seu pacote conforme a especificação .tmod do projeto.</li><li>Clique em “Enviar um mod” e preencha o formulário de submissão.</li><li>Inclua um link de download público ou anexe o arquivo na conversa da solicitação, se o GitHub permitir.</li><li>A equipe revisará o pacote. Somente mods aprovados serão adicionados ao catálogo.</li></ol><p class="meta">Não envie executáveis, arquivos suspeitos ou conteúdo que você não tenha autorização para distribuir.</p></section>
+</main>
+<footer><span>Catálogo comunitário · T360 ModLoader</span><span><a href="https://github.com/davizim140/t360modloader/issues">Ver envios e discussões no GitHub ↗</a></span></footer>
+</div>
+<script>
+(function(){
+const catalog=document.getElementById('catalog'),search=document.getElementById('search');let mods=[];
+function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function render(){
+const q=search.value.trim().toLowerCase();
+const visible=mods.filter(m=>(String(m.name||'')+' '+String(m.description||'')+' '+String(m.author||'')).toLowerCase().includes(q));
+if(!visible.length){catalog.innerHTML='<div class="empty"><strong>Nenhum mod aprovado no catálogo ainda.</strong><br>Se você criou um mod, envie para análise pela comunidade.</div>';return}
+catalog.innerHTML=visible.map(m=>'<article class="mod"><h3>'+esc(m.name)+'</h3><div class="meta">Por '+esc(m.author||'Autor não informado')+' · v'+esc(m.version||'?')+'</div><p>'+esc(m.description||'Sem descrição.')+'</p>'+(m.category?'<span class="tag">'+esc(m.category)+'</span>':'')+(m.download_url?'<p><a class="btn primary" rel="noopener" href="'+esc(m.download_url)+'">Baixar mod ↗</a></p>':'<p class="meta">Download ainda não publicado.</p>')+'</article>').join('');
+}
+search.addEventListener('input',render);
+fetch('./mods.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(data=>{mods=Array.isArray(data.mods)?data.mods.filter(m=>m.approved===true):[];render()}).catch(()=>{catalog.innerHTML='<div class="error">Não foi possível carregar o catálogo agora. Tente novamente mais tarde.</div>'});
+})();
+</script>
+</body></html>
