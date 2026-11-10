@@ -247,7 +247,8 @@ static bool inspect_tmod(const char *path, TmodInfo *info, const char **reason)
     }
 
     payload_start = ftell(file);
-    if (payload_start < 0 || payload_length != (uint32_t)(file_size - payload_start)) {
+    if (payload_start < 0 || payload_start > file_size ||
+        payload_length != (uint32_t)(file_size - payload_start)) {
         *reason = "Tamanho interno inconsistente";
         goto done;
     }
@@ -531,8 +532,7 @@ static void draw_packages(uint32_t height)
             (void)snprintf(detail, sizeof(detail), "tModLoader: %s", item->tml_version);
             xsdk_text_draw(760, 592, 1, MUTED, detail);
         }
-        xsdk_text_draw(760, 630, 1, MUTED, "Hash/assinatura nao verificados");
-        xsdk_text_draw(760, 658, 1, MUTED, "Instalacao: indisponivel");
+        xsdk_text_draw(760, 624, 1, MUTED, "Hash/assinatura nao verificados");
         char counter[48];
         (void)snprintf(counter, sizeof(counter), "Pacote %u de %u",
             (unsigned)(mod_package_selected + 1), (unsigned)mod_package_count);
