@@ -20,8 +20,10 @@ enum {
     MUTED = 0xFF9BAAB5,
     GREEN = 0xFF7CDA42,
     SELECTED = 0xFFB8F28A,
-    STORAGE_MAX_ENTRIES = 8,
-    STORAGE_NAME_BYTES = 48,
+    STORAGE_MAX_ENTRIES = 256,
+    STORAGE_NAME_BYTES = 96,
+    STORAGE_PATH_BYTES = 512,
+    STORAGE_VISIBLE = 5,
 };
 
 typedef enum {
@@ -54,6 +56,7 @@ static uint32_t device_count, device_index, storage_count, storage_selected;
 static StorageEntry storage_entries[STORAGE_MAX_ENTRIES];
 static int storage_error;
 static bool storage_more;
+static char storage_path[STORAGE_PATH_BYTES];
 
 static void copy_bounded(char *dst, size_t cap, const char *src)
 {
@@ -82,7 +85,8 @@ static void load_current_device(void)
     storage_more = false;
     int index = current_device_index();
     if (index < 0) return;
-    DIR *dir = opendir(storage_devices[index].root);
+    if (!storage_path[0]) copy_bounded(storage_path, sizeof(storage_path), storage_devices[index].root);
+    DIR *dir = opendir(storage_path);
     if (!dir) { storage_error = errno; return; }
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
@@ -110,6 +114,11 @@ static void scan_storage_devices(void)
             storage_devices[i].label, storage_devices[i].root);
     }
     xsdk_log_write("T360: device scan finished: %u accessible device(s)", (unsigned)device_count);
+    storage_path[0] = '\0';
+    if (device_count) {
+        int active = current_device_index();
+        if (active >= 0) copy_bounded(storage_path, sizeof(storage_path), storage_devices[active].root);
+    }
     load_current_device();
 }
 
@@ -118,8 +127,42 @@ static void select_device(int direction)
     if (device_count < 2) return;
     if (direction > 0) device_index = (device_index + 1) % device_count;
     else device_index = device_index == 0 ? device_count - 1 : device_index - 1;
+    int active = current_device_index();
+    storage_path[0] = '\0';
+    if (active >= 0) copy_bounded(storage_path, sizeof(storage_path), storage_devices[active].root);
     load_current_device();
 }
+
+static bool storage_enter_directory(void)
+{
+    if (storage_selected >= storage_count || !storage_entries[storage_selected].is_directory) return false;
+    size_t used = strlen(storage_path);
+    int n = snprintf(storage_path + used, sizeof(storage_path) - used, "%s\\", storage_entries[storage_selected].name);
+    if (n <= 0 || (size_t)n >= sizeof(storage_path) - used) return false;
+    load_current_device();
+    return true;
+}
+
+static bool storage_parent_directory(void)
+{
+    int active = current_device_index();
+    if (active < 0) return false;
+    const char *root = storage_devices[active].root;
+    size_t root_len = strlen(root);
+    size_t len = strlen(storage_path);
+    if (len <= root_len) return false;
+    while (len > root_len && (storage_path[len - 1] == '\\' || storage_path[len - 1] == '/'))
+        storage_path[--len] = '\0';
+    char *last = strrchr(storage_path, '\\');
+    if (!last) last = strrchr(storage_path, '/');
+    if (!last || (size_t)(last - storage_path) < root_len - 1)
+        copy_bounded(storage_path, sizeof(storage_path), root);
+    else
+        last[1] = '\0';
+    load_current_device();
+    return true;
+}
+
 static void draw_line(int32_t x, int32_t y, uint32_t color, const char *text)
 {
     xsdk_text_draw(x, y, 2, color, text);
@@ -152,13 +195,17 @@ static void draw_storage(uint32_t height)
             xsdk_text_draw(112, y, 1, active == (int)i ? SELECTED : WHITE, label);
             y += 25;
         }
-        xsdk_text_draw(360, 372, 1, MUTED, "Itens na raiz:");
+        xsdk_text_draw(360, 372, 1, MUTED, "Conteudo da pasta:");
+        xsdk_text_draw(360, 394, 1, MUTED, storage_path);
         if (storage_error) {
-            xsdk_text_draw(360, 410, 1, WHITE, "Falha ao ler unidade.");
+            xsdk_text_draw(360, 430, 1, WHITE, "Falha ao ler pasta.");
         } else if (!storage_count) {
-            xsdk_text_draw(360, 410, 1, WHITE, "Unidade vazia.");
+            xsdk_text_draw(360, 430, 1, WHITE, "Pasta vazia.");
         } else {
-            for (uint32_t i = 0; i < storage_count && i < 5; ++i) {
+            size_t first = storage_selected >= STORAGE_VISIBLE ? storage_selected - STORAGE_VISIBLE + 1 : 0;
+            size_t end = first + STORAGE_VISIBLE;
+            if (end > storage_count) end = storage_count;
+            for (size_t i = first; i < end; ++i) {
                 char line[STORAGE_NAME_BYTES + 4];
                 unsigned p = 0;
                 line[p++] = i == storage_selected ? '>' : ' ';
@@ -167,14 +214,18 @@ static void draw_storage(uint32_t height)
                 while (*name && p < sizeof(line) - 2) line[p++] = *name++;
                 if (storage_entries[i].is_directory && p < sizeof(line) - 1) line[p++] = '/';
                 line[p] = '\0';
-                xsdk_text_draw(380, 402 + (int32_t)i * 27, 1,
+                xsdk_text_draw(380, 430 + (int32_t)(i - first) * 25, 1,
                     i == storage_selected ? SELECTED : WHITE, line);
             }
-            if (storage_more) xsdk_text_draw(380, 540, 1, MUTED, "Mais itens...");
+            char counter[48];
+            (void)snprintf(counter, sizeof(counter), "Item %u de %u",
+                (unsigned)(storage_selected + 1), (unsigned)storage_count);
+            xsdk_text_draw(380, 565, 1, MUTED, counter);
+            if (storage_more) xsdk_text_draw(380, 585, 1, MUTED, "Limite de 256 itens nesta pasta.");
         }
     }
     xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED,
-        "ESQ/DIR: trocar unidade   A: detectar novamente   B: voltar");
+        "ESQ/DIR: trocar unidade  CIMA/BAIXO: navegar  A: abrir  B: voltar");
 }
 
 static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t selected,
@@ -308,13 +359,16 @@ int main(void)
         } else if (page == PAGE_STORAGE) {
             if (pressed & INPUT_GAMEPAD_DPAD_LEFT) select_device(-1);
             if (pressed & INPUT_GAMEPAD_DPAD_RIGHT) select_device(1);
-            if (pressed & INPUT_GAMEPAD_A) scan_storage_devices();
             if (storage_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_UP))
                 storage_selected = storage_selected == 0 ? storage_count - 1 : storage_selected - 1;
             if (storage_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_DOWN))
                 storage_selected = (storage_selected + 1) % storage_count;
-            if (pressed & INPUT_GAMEPAD_B)
-                page = PAGE_MENU;
+            if (pressed & INPUT_GAMEPAD_A) {
+                if (!storage_enter_directory() && storage_count == 0) scan_storage_devices();
+            }
+            if (pressed & INPUT_GAMEPAD_B) {
+                if (!storage_parent_directory()) page = PAGE_MENU;
+            }
         } else if (pressed & INPUT_GAMEPAD_B) {
             page = PAGE_MENU;
         }
