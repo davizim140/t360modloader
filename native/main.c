@@ -47,6 +47,12 @@ typedef struct {
     char name[STORAGE_NAME_BYTES];
     char device[16];
     unsigned long long size;
+    bool structure_valid;
+    char internal_name[STORAGE_NAME_BYTES];
+    char mod_version[32];
+    char tml_version[32];
+    int32_t file_count;
+    char validation[48];
 } ModPackage;
 
 static ModPackage mod_packages[MAX_MOD_PACKAGES];
@@ -153,6 +159,160 @@ static void scan_storage_devices(void)
     load_current_device();
 }
 
+
+typedef struct {
+    char internal_name[STORAGE_NAME_BYTES];
+    char mod_version[32];
+    char tml_version[32];
+    int32_t file_count;
+} TmodInfo;
+
+static bool read_exact(FILE *file, void *buffer, size_t bytes)
+{
+    return bytes == 0 || fread(buffer, 1, bytes, file) == bytes;
+}
+
+static bool read_u32_le(FILE *file, uint32_t *value)
+{
+    uint8_t b[4];
+    if (!read_exact(file, b, sizeof(b))) return false;
+    *value = (uint32_t)b[0] | ((uint32_t)b[1] << 8) |
+        ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24);
+    return true;
+}
+
+/* .NET BinaryReader strings use a 7-bit encoded byte length. */
+static bool read_dotnet_string(FILE *file, char *out, size_t capacity)
+{
+    uint32_t length = 0;
+    unsigned shift = 0;
+    uint8_t byte = 0;
+    for (unsigned i = 0; i < 5; ++i) {
+        if (!read_exact(file, &byte, 1)) return false;
+        if (i == 4 && (byte & 0xF0u)) return false;
+        length |= (uint32_t)(byte & 0x7Fu) << shift;
+        if (!(byte & 0x80u)) {
+            if (length >= capacity || !read_exact(file, out, length)) return false;
+            out[length] = '\0';
+            return true;
+        }
+        shift += 7;
+    }
+    return false;
+}
+
+static bool skip_exact(FILE *file, uint32_t bytes)
+{
+    uint8_t scratch[128];
+    while (bytes) {
+        size_t chunk = bytes > sizeof(scratch) ? sizeof(scratch) : bytes;
+        if (!read_exact(file, scratch, chunk)) return false;
+        bytes -= (uint32_t)chunk;
+    }
+    return true;
+}
+
+/*
+ * Performs bounded structural validation of the documented tModLoader
+ * .tmod container. It does not verify SHA-1/signature or runtime compatibility.
+ */
+static bool inspect_tmod(const char *path, TmodInfo *info, const char **reason)
+{
+    FILE *file = fopen(path, "rb");
+    if (!file) { *reason = "Arquivo inacessivel"; return false; }
+
+    bool valid = false;
+    uint8_t magic[4];
+    uint32_t payload_length = 0;
+    uint32_t count = 0;
+    unsigned long long compressed_total = 0;
+    long file_size = -1;
+    long payload_start = -1;
+
+    if (fseek(file, 0, SEEK_END) != 0 || (file_size = ftell(file)) < 0 ||
+        fseek(file, 0, SEEK_SET) != 0) {
+        *reason = "Falha de leitura";
+        goto done;
+    }
+    if (!read_exact(file, magic, sizeof(magic)) ||
+        memcmp(magic, "TMOD", 4) != 0) {
+        *reason = "Cabecalho TMOD ausente";
+        goto done;
+    }
+    if (!read_dotnet_string(file, info->tml_version, sizeof(info->tml_version)) ||
+        !skip_exact(file, 20u + 256u) ||
+        !read_u32_le(file, &payload_length)) {
+        *reason = "Cabecalho incompleto";
+        goto done;
+    }
+
+    payload_start = ftell(file);
+    if (payload_start < 0 || payload_length != (uint32_t)(file_size - payload_start)) {
+        *reason = "Tamanho interno inconsistente";
+        goto done;
+    }
+    if (!read_dotnet_string(file, info->internal_name, sizeof(info->internal_name)) ||
+        !read_dotnet_string(file, info->mod_version, sizeof(info->mod_version)) ||
+        !read_u32_le(file, &count) || count > 4096u) {
+        *reason = "Metadados invalidos";
+        goto done;
+    }
+
+    info->file_count = (int32_t)count;
+    for (uint32_t i = 0; i < count; ++i) {
+        char entry_name[512];
+        uint32_t uncompressed = 0, compressed = 0;
+        if (!read_dotnet_string(file, entry_name, sizeof(entry_name)) ||
+            !read_u32_le(file, &uncompressed) ||
+            !read_u32_le(file, &compressed)) {
+            *reason = "Tabela de arquivos incompleta";
+            goto done;
+        }
+        if (compressed > UINT32_MAX - compressed_total) {
+            *reason = "Tamanho de arquivo invalido";
+            goto done;
+        }
+        compressed_total += compressed;
+        (void)uncompressed;
+    }
+
+    {
+        long data_start = ftell(file);
+        if (data_start < 0 || data_start > file_size ||
+            compressed_total != (unsigned long long)(file_size - data_start)) {
+            *reason = "Dados internos inconsistentes";
+            goto done;
+        }
+    }
+    valid = true;
+    *reason = "Estrutura reconhecida";
+
+done:
+    fclose(file);
+    return valid;
+}
+
+static void validate_mod_package(ModPackage *item, uint32_t device_index_value)
+{
+    char path[STORAGE_PATH_BYTES];
+    int n = snprintf(path, sizeof(path), "%sT360\\\\Mods\\\\%s",
+        storage_devices[device_index_value].root, item->name);
+    if (n <= 0 || (size_t)n >= sizeof(path)) {
+        copy_bounded(item->validation, sizeof(item->validation), "Caminho muito longo");
+        return;
+    }
+    TmodInfo info = { 0 };
+    const char *reason = "Pacote invalido";
+    item->structure_valid = inspect_tmod(path, &info, &reason);
+    copy_bounded(item->validation, sizeof(item->validation), reason);
+    if (item->structure_valid) {
+        copy_bounded(item->internal_name, sizeof(item->internal_name), info.internal_name);
+        copy_bounded(item->mod_version, sizeof(item->mod_version), info.mod_version);
+        copy_bounded(item->tml_version, sizeof(item->tml_version), info.tml_version);
+        item->file_count = info.file_count;
+    }
+}
+
 static bool has_tmod_extension(const char *name)
 {
     const char *dot = strrchr(name, '.');
@@ -191,6 +351,7 @@ static void scan_mod_packages(void)
             copy_bounded(item->name, sizeof(item->name), entry->d_name);
             copy_bounded(item->device, sizeof(item->device), storage_devices[i].label);
             item->size = (unsigned long long)info.st_size;
+            validate_mod_package(item, i);
         }
         (void)closedir(dir);
         if (mod_packages_truncated) break;
@@ -359,8 +520,19 @@ static void draw_packages(uint32_t height)
         xsdk_text_draw(760, 382, 1, WHITE, detail);
         (void)snprintf(detail, sizeof(detail), "Tamanho: %llu bytes", item->size);
         xsdk_text_draw(760, 420, 1, WHITE, detail);
-        xsdk_text_draw(760, 470, 1, MUTED, "Integridade: nao verificada");
-        xsdk_text_draw(760, 502, 1, MUTED, "Instalacao: indisponivel");
+        xsdk_text_draw(760, 462, 1, item->structure_valid ? GREEN : MUTED, item->validation);
+        if (item->structure_valid) {
+            (void)snprintf(detail, sizeof(detail), "Mod: %s", item->internal_name);
+            xsdk_text_draw(760, 496, 1, WHITE, detail);
+            (void)snprintf(detail, sizeof(detail), "Versao: %s", item->mod_version);
+            xsdk_text_draw(760, 528, 1, WHITE, detail);
+            (void)snprintf(detail, sizeof(detail), "Arquivos: %ld", (long)item->file_count);
+            xsdk_text_draw(760, 560, 1, WHITE, detail);
+            (void)snprintf(detail, sizeof(detail), "tModLoader: %s", item->tml_version);
+            xsdk_text_draw(760, 592, 1, MUTED, detail);
+        }
+        xsdk_text_draw(760, 630, 1, MUTED, "Hash/assinatura nao verificados");
+        xsdk_text_draw(760, 658, 1, MUTED, "Instalacao: indisponivel");
         char counter[48];
         (void)snprintf(counter, sizeof(counter), "Pacote %u de %u",
             (unsigned)(mod_package_selected + 1), (unsigned)mod_package_count);
