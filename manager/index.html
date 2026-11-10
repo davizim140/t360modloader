@@ -54,7 +54,7 @@ async function validate(file){
  const entries=Object.values(zip.files).filter(x=>!x.dir);
  if(!entries.length||entries.length>MAX_ENTRIES)throw Error('Quantidade de arquivos fora do limite (1–2000).');
  let total=0;const names=new Set();
- for(const e of entries){const n=e.unsafeOriginalName||e.name;if(!safePath(n))throw Error('Caminho inseguro no pacote: '+n);if(names.has(n))throw Error('Caminho duplicado: '+n);names.add(n);if(n!=='mod.json'&&!n.startsWith('assets/'))throw Error('Arquivo fora de assets/: '+n);total+=e._data&&e._data.uncompressedSize||0;if(total>MAX_BYTES)throw Error('Pacote excede 64 MiB descompactados.');if(e.unixPermissions&&String(e.unixPermissions).startsWith('120'))throw Error('Links simbólicos não são permitidos.')}
+ for(const e of entries){const n=e.unsafeOriginalName||e.name;if(!safePath(n))throw Error('Caminho inseguro no pacote: '+n);if(names.has(n))throw Error('Caminho duplicado: '+n);names.add(n);if(n!=='mod.json'&&!n.startsWith('assets/'))throw Error('Arquivo fora de assets/: '+n);total+=e._data&&e._data.uncompressedSize||0;if(total>MAX_BYTES)throw Error('Pacote excede 64 MiB descompactados.');if(typeof e.unixPermissions==='number'&&(e.unixPermissions&0o170000)===0o120000)throw Error('Links simbólicos não são permitidos.')}
  if(!names.has('mod.json'))throw Error('mod.json não encontrado.');
  const manifest=JSON.parse(await zip.file('mod.json').async('string'));
  if(!manifest||Array.isArray(manifest)||typeof manifest!=='object')throw Error('mod.json deve conter um objeto JSON.');
