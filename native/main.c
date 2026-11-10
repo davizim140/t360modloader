@@ -186,7 +186,7 @@ static void scan_mod_packages(void)
             n = snprintf(full_path, sizeof(full_path), "%s%s", folder, entry->d_name);
             if (n <= 0 || (size_t)n >= sizeof(full_path)) continue;
             struct stat info;
-            if (stat(full_path, &info) != 0 || (info.st_mode & S_IFDIR)) continue;
+            if (stat(full_path, &info) != 0 || S_ISDIR(info.st_mode)) continue;
             ModPackage *item = &mod_packages[mod_package_count++];
             copy_bounded(item->name, sizeof(item->name), entry->d_name);
             copy_bounded(item->device, sizeof(item->device), storage_devices[i].label);
