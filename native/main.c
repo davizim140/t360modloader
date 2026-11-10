@@ -39,8 +39,14 @@ static void draw_line(int32_t x, int32_t y, uint32_t color, const char *text)
 static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t selected,
     uint32_t controller_status)
 {
-    xsdk_gpu_set_target(width, height);
+    uint32_t address = 0;
+    const NTSTATUS status = xsdk_present_begin(&address, FRAME_TIMEOUT_MS);
+    if (!NT_SUCCESS(status)) {
+        xsdk_log_write("T360: xsdk_present_begin failed: 0x%08X", (unsigned)status);
+        return;
+    }
 
+    xsdk_gpu_set_target(width, height);
     draw_line(72, 54, GREEN, "T360 MODLOADER");
     draw_line(72, 104, WHITE, "Gerenciador nativo para Xbox 360 RGH");
     xsdk_text_draw(72, 166, 1, MUTED, "Versao inicial - interface e entrada do controle");
@@ -83,12 +89,6 @@ static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t sel
         xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED, "B ou BACK: voltar");
     }
 
-    uint32_t address = 0;
-    const NTSTATUS status = xsdk_present_begin(&address, FRAME_TIMEOUT_MS);
-    if (!NT_SUCCESS(status)) {
-        xsdk_log_write("T360: xsdk_present_begin failed: 0x%08X", (unsigned)status);
-        return;
-    }
     xsdk_gpu_resolve(address, width, height, CLEAR_COLOR);
     xsdk_present_end();
 }
