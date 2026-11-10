@@ -34,13 +34,23 @@ jobs:
           repository: xenosworks/xsdk
           path: xsdk
 
+      - name: Cache xsdk toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/xsdk-gcc
+            ~/xsdk-gcc-work
+          key: xsdk-toolchain-${{ runner.os }}-${{ hashFiles('xsdk/tools/toolchain/build.sh', 'xsdk/tools/toolchain/*.patch') }}
+          restore-keys: |
+            xsdk-toolchain-${{ runner.os }}-
+
       - name: Build xsdk toolchain
         run: |
-          PREFIX="$HOME/xsdk-gcc" WORK="$HOME/xsdk-gcc-work" JOBS=2 bash xsdk/tools/toolchain/build.sh
+          PREFIX="$HOME/xsdk-gcc" WORK="$HOME/xsdk-gcc-work" JOBS=4 bash xsdk/tools/toolchain/build.sh
 
       - name: Build xsdk runtime
         run: |
-          make -C xsdk -j2 TOOLCHAIN="$HOME/xsdk-gcc/bin/powerpc-xsdk-elf-"
+          make -C xsdk -j4 TOOLCHAIN="$HOME/xsdk-gcc/bin/powerpc-xsdk-elf-"
 
       - name: Configure T360 native manager
         run: |
