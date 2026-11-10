@@ -1,0 +1,60 @@
+name: Enviar um mod
+description: Envie um pacote para análise e possível inclusão no catálogo da comunidade.
+title: "[MOD] "
+labels: ["mod-submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por contribuir! O envio não publica o mod automaticamente. A equipe precisa revisar o pacote antes de adicioná-lo ao catálogo.
+  - type: input
+    id: mod_name
+    attributes:
+      label: Nome do mod
+      placeholder: Nome do seu mod
+    validations:
+      required: true
+  - type: input
+    id: mod_version
+    attributes:
+      label: Versão
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: input
+    id: author
+    attributes:
+      label: Autor ou equipe
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Descrição e alterações
+      description: Explique o que o mod faz e quais arquivos contém.
+    validations:
+      required: true
+  - type: input
+    id: download
+    attributes:
+      label: Link público para baixar o .tmod
+      description: Use um link direto e acessível. Não inclua senhas ou tokens.
+      placeholder: https://...
+    validations:
+      required: true
+  - type: input
+    id: checksum
+    attributes:
+      label: SHA-256 do arquivo
+      description: Informe o hash SHA-256 do pacote, se disponível.
+    validations:
+      required: false
+  - type: checkboxes
+    id: rights
+    attributes:
+      label: Direitos e segurança
+      options:
+        - label: Tenho autorização para distribuir todos os arquivos enviados.
+          required: true
+        - label: O pacote não contém executáveis, scripts ou conteúdo malicioso.
+          required: true
