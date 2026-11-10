@@ -36,6 +36,7 @@ typedef enum {
     PAGE_ABOUT,
     PAGE_STORAGE,
     PAGE_PACKAGES,
+    PAGE_PACKAGE_FILES,
 } Page;
 
 typedef struct {
@@ -46,6 +47,7 @@ typedef struct {
 typedef struct {
     char name[STORAGE_NAME_BYTES];
     char device[16];
+    uint32_t device_index;
     unsigned long long size;
     bool structure_valid;
     char internal_name[STORAGE_NAME_BYTES];
@@ -58,6 +60,14 @@ typedef struct {
 static ModPackage mod_packages[MAX_MOD_PACKAGES];
 static size_t mod_package_count, mod_package_selected;
 static bool mod_packages_truncated;
+typedef struct {
+    char name[128];
+    uint32_t uncompressed_size;
+    uint32_t compressed_size;
+} TmodEntry;
+static TmodEntry *package_entries;
+static size_t package_entry_count, package_entry_selected;
+static bool package_entries_truncated;
 
 static const char *const menu_items[] = {
     "Diagnostico do console",
@@ -314,6 +324,53 @@ static void validate_mod_package(ModPackage *item, uint32_t device_index_value)
     }
 }
 
+static void clear_package_entries(void)
+{
+    free(package_entries);
+    package_entries = NULL;
+    package_entry_count = 0;
+    package_entry_selected = 0;
+    package_entries_truncated = false;
+}
+
+static bool load_package_entries(const ModPackage *item)
+{
+    clear_package_entries();
+    char path[STORAGE_PATH_BYTES];
+    int n = snprintf(path, sizeof(path), "%sT360\\Mods\\%s",
+        storage_devices[item->device_index].root, item->name);
+    if (n <= 0 || (size_t)n >= sizeof(path)) return false;
+    FILE *file = fopen(path, "rb");
+    if (!file) return false;
+    uint8_t magic[4];
+    char tml_version[32], mod_name[STORAGE_NAME_BYTES], mod_version[32];
+    uint32_t payload_length = 0, count = 0;
+    bool ok = read_exact(file, magic, 4) && memcmp(magic, "TMOD", 4) == 0 &&
+        read_dotnet_string(file, tml_version, sizeof(tml_version)) &&
+        skip_exact(file, 20u + 256u) && read_u32_le(file, &payload_length) &&
+        read_dotnet_string(file, mod_name, sizeof(mod_name)) &&
+        read_dotnet_string(file, mod_version, sizeof(mod_version)) &&
+        read_u32_le(file, &count) && count <= 4096u;
+    if (!ok) { fclose(file); return false; }
+    package_entries = (TmodEntry *)calloc(count ? count : 1, sizeof(TmodEntry));
+    if (!package_entries) { fclose(file); return false; }
+    for (uint32_t i = 0; i < count; ++i) {
+        char entry_name[512];
+        uint32_t raw_size = 0, packed_size = 0;
+        if (!read_dotnet_string(file, entry_name, sizeof(entry_name)) ||
+            !read_u32_le(file, &raw_size) || !read_u32_le(file, &packed_size)) {
+            clear_package_entries(); fclose(file); return false;
+        }
+        copy_bounded(package_entries[i].name, sizeof(package_entries[i].name), entry_name);
+        package_entries[i].uncompressed_size = raw_size;
+        package_entries[i].compressed_size = packed_size;
+        ++package_entry_count;
+    }
+    package_entries_truncated = false;
+    fclose(file);
+    return true;
+}
+
 static bool has_tmod_extension(const char *name)
 {
     const char *dot = strrchr(name, '.');
@@ -351,6 +408,7 @@ static void scan_mod_packages(void)
             ModPackage *item = &mod_packages[mod_package_count++];
             copy_bounded(item->name, sizeof(item->name), entry->d_name);
             copy_bounded(item->device, sizeof(item->device), storage_devices[i].label);
+            item->device_index = i;
             item->size = (unsigned long long)info.st_size;
             validate_mod_package(item, i);
         }
@@ -494,6 +552,39 @@ static void draw_storage(uint32_t height)
         "CIMA/BAIXO: navegar  A: abrir pasta  B: voltar  ESQ/DIR: unidade");
 }
 
+static void draw_package_files(uint32_t height)
+{
+    draw_line(80, 238, SELECTED, "ARQUIVOS INTERNOS DO PACOTE");
+    xsdk_text_draw(80, 278, 1, MUTED, "Indice lido do .tmod  |  Conteudo nao extraido");
+    if (!package_entry_count) {
+        xsdk_text_draw(80, 360, 2, WHITE, "Nenhum arquivo listado.");
+    } else {
+        size_t first = package_entry_selected >= PACKAGE_VISIBLE ? package_entry_selected - PACKAGE_VISIBLE + 1 : 0;
+        size_t end = first + PACKAGE_VISIBLE;
+        if (end > package_entry_count) end = package_entry_count;
+        for (size_t i = first; i < end; ++i) {
+            char line[160];
+            (void)snprintf(line, sizeof(line), "%c %s",
+                i == package_entry_selected ? '>' : ' ', package_entries[i].name);
+            xsdk_text_draw(96, 340 + (int32_t)(i - first) * 38, 1,
+                i == package_entry_selected ? SELECTED : WHITE, line);
+        }
+        char detail[128];
+        const TmodEntry *entry = &package_entries[package_entry_selected];
+        (void)snprintf(detail, sizeof(detail), "Descompactado: %u bytes", (unsigned)entry->uncompressed_size);
+        xsdk_text_draw(760, 382, 1, WHITE, detail);
+        (void)snprintf(detail, sizeof(detail), "Compactado: %u bytes", (unsigned)entry->compressed_size);
+        xsdk_text_draw(760, 420, 1, WHITE, detail);
+        (void)snprintf(detail, sizeof(detail), "Arquivo %u de %u",
+            (unsigned)(package_entry_selected + 1), (unsigned)package_entry_count);
+        xsdk_text_draw(760, 462, 1, MUTED, detail);
+    }
+    if (package_entries_truncated)
+        xsdk_text_draw(760, 500, 1, MUTED, "Lista interna limitada.");
+    xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED,
+        "CIMA/BAIXO: navegar  B: voltar  |  Somente leitura");
+}
+
 static void draw_packages(uint32_t height)
 {
     draw_line(80, 238, SELECTED, "PACOTES LOCAIS .TMOD");
@@ -533,6 +624,7 @@ static void draw_packages(uint32_t height)
             xsdk_text_draw(760, 592, 1, MUTED, detail);
         }
         xsdk_text_draw(760, 624, 1, MUTED, "Hash/assinatura nao verificados");
+        xsdk_text_draw(760, 660, 1, MUTED, "A: ver indice interno");
         char counter[48];
         (void)snprintf(counter, sizeof(counter), "Pacote %u de %u",
             (unsigned)(mod_package_selected + 1), (unsigned)mod_package_count);
@@ -594,6 +686,8 @@ static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t sel
         xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED, "B ou BACK: voltar");
     } else if (page == PAGE_STORAGE) {
         draw_storage(height);
+    } else if (page == PAGE_PACKAGE_FILES) {
+        draw_package_files(height);
     } else {
         draw_packages(height);
     }
@@ -675,11 +769,20 @@ int main(void)
                     running = false;
                 }
             }
+        } else if (page == PAGE_PACKAGE_FILES) {
+            if (package_entry_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_UP))
+                package_entry_selected = package_entry_selected == 0 ? package_entry_count - 1 : package_entry_selected - 1;
+            if (package_entry_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_DOWN))
+                package_entry_selected = (package_entry_selected + 1) % package_entry_count;
+            if (pressed & INPUT_GAMEPAD_B) page = PAGE_PACKAGES;
         } else if (page == PAGE_PACKAGES) {
             if (mod_package_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_UP))
                 mod_package_selected = mod_package_selected == 0 ? mod_package_count - 1 : mod_package_selected - 1;
             if (mod_package_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_DOWN))
                 mod_package_selected = (mod_package_selected + 1) % mod_package_count;
+            if (mod_package_count > 0 && (pressed & INPUT_GAMEPAD_A)) {
+                if (load_package_entries(&mod_packages[mod_package_selected])) page = PAGE_PACKAGE_FILES;
+            }
         } else if (page == PAGE_STORAGE) {
             if (pressed & INPUT_GAMEPAD_DPAD_LEFT) select_device(-1);
             if (pressed & INPUT_GAMEPAD_DPAD_RIGHT) select_device(1);
