@@ -43,61 +43,83 @@ static const char *const menu_items[] = {
     "Sair",
 };
 
+typedef struct { const char *label; const char *root; } StorageDevice;
+static const StorageDevice storage_devices[] = {
+    {"USB", "usb:\\"}, {"USB1", "usb1:\\"}, {"USB2", "usb2:\\"},
+    {"HDD", "hdd:\\"}, {"MU", "mu:\\"}, {"MU1", "mu1:\\"}, {"DVD", "dvd:\\"}
+};
+#define DEVICE_TOTAL (sizeof(storage_devices) / sizeof(storage_devices[0]))
+static uint8_t device_present[DEVICE_TOTAL];
+static uint32_t device_count, device_index, storage_count, storage_selected;
 static StorageEntry storage_entries[STORAGE_MAX_ENTRIES];
-static uint32_t storage_count;
-static uint32_t storage_selected;
-static uint32_t storage_drive;
 static int storage_error;
 static bool storage_more;
 
-static void copy_bounded(char *destination, size_t destination_size, const char *source)
+static void copy_bounded(char *dst, size_t cap, const char *src)
 {
-    if (destination_size == 0)
-        return;
-    size_t length = strlen(source);
-    if (length >= destination_size)
-        length = destination_size - 1;
-    memcpy(destination, source, length);
-    destination[length] = '\0';
+    if (!cap) return;
+    size_t n = strlen(src);
+    if (n >= cap) n = cap - 1;
+    memcpy(dst, src, n);
+    dst[n] = '\0';
 }
 
-static const char *storage_root(void)
+static int current_device_index(void)
 {
-    return storage_drive == 0 ? "usb:\\" : "hdd:\\";
+    uint32_t seen = 0;
+    for (uint32_t i = 0; i < DEVICE_TOTAL; ++i) {
+        if (!device_present[i]) continue;
+        if (seen++ == device_index) return (int)i;
+    }
+    return -1;
 }
 
-// This is deliberately lazy: no filesystem call runs during XEX startup.
-static void storage_load(void)
+static void load_current_device(void)
 {
     storage_count = 0;
     storage_selected = 0;
     storage_error = 0;
     storage_more = false;
-
-    DIR *directory = opendir(storage_root());
-    if (!directory) {
-        storage_error = errno;
-        return;
-    }
-
+    int index = current_device_index();
+    if (index < 0) return;
+    DIR *dir = opendir(storage_devices[index].root);
+    if (!dir) { storage_error = errno; return; }
     struct dirent *entry;
-    while ((entry = readdir(directory)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-            continue;
-
-        if (storage_count == STORAGE_MAX_ENTRIES) {
-            storage_more = true;
-            break;
-        }
-
+    while ((entry = readdir(dir)) != NULL) {
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) continue;
+        if (storage_count == STORAGE_MAX_ENTRIES) { storage_more = true; break; }
         StorageEntry *item = &storage_entries[storage_count++];
         copy_bounded(item->name, sizeof(item->name), entry->d_name);
         item->is_directory = entry->d_type == DT_DIR;
     }
-
-    (void)closedir(directory);
+    (void)closedir(dir);
 }
 
+static void scan_storage_devices(void)
+{
+    memset(device_present, 0, sizeof(device_present));
+    device_count = 0;
+    device_index = 0;
+    for (uint32_t i = 0; i < DEVICE_TOTAL; ++i) {
+        DIR *dir = opendir(storage_devices[i].root);
+        if (!dir) continue;
+        (void)closedir(dir);
+        device_present[i] = 1;
+        ++device_count;
+        xsdk_log_write("T360: detected %s at %s",
+            storage_devices[i].label, storage_devices[i].root);
+    }
+    xsdk_log_write("T360: device scan finished: %u accessible device(s)", (unsigned)device_count);
+    load_current_device();
+}
+
+static void select_device(int direction)
+{
+    if (device_count < 2) return;
+    if (direction > 0) device_index = (device_index + 1) % device_count;
+    else device_index = device_index == 0 ? device_count - 1 : device_index - 1;
+    load_current_device();
+}
 static void draw_line(int32_t x, int32_t y, uint32_t color, const char *text)
 {
     xsdk_text_draw(x, y, 2, color, text);
@@ -105,61 +127,54 @@ static void draw_line(int32_t x, int32_t y, uint32_t color, const char *text)
 
 static void draw_storage(uint32_t height)
 {
-    draw_line(92, 250, SELECTED, "ARMAZENAMENTO");
-    xsdk_text_draw(92, 300, 1, MUTED, "Somente leitura - nenhum arquivo sera alterado");
-
-    if (storage_drive == 0) {
-        xsdk_text_draw(92, 346, 2, SELECTED, "[ USB ]");
-        xsdk_text_draw(250, 346, 2, MUTED, "HDD");
+    draw_line(92, 250, SELECTED, "DISPOSITIVOS CONECTADOS");
+    xsdk_text_draw(92, 292, 1, MUTED, "Deteccao automatica - somente leitura");
+    if (!device_count) {
+        xsdk_text_draw(92, 370, 2, WHITE, "Nenhuma unidade acessivel detectada.");
+        xsdk_text_draw(92, 414, 1, MUTED, "Conecte um dispositivo e pressione A para atualizar.");
     } else {
-        xsdk_text_draw(92, 346, 2, MUTED, "USB");
-        xsdk_text_draw(250, 346, 2, SELECTED, "[ HDD ]");
-    }
-
-    if (storage_error != 0) {
-        xsdk_text_draw(92, 410, 2, WHITE, "Nao foi possivel abrir esta unidade.");
-        char error_line[64] = "Codigo errno: ";
-        unsigned position = (unsigned)strlen(error_line);
-        unsigned value = (unsigned)storage_error;
-        char digits[12];
-        unsigned digit_count = 0;
-        do {
-            digits[digit_count++] = (char)('0' + value % 10);
-            value /= 10;
-        } while (value && digit_count < sizeof(digits));
-        while (digit_count && position < sizeof(error_line) - 1)
-            error_line[position++] = digits[--digit_count];
-        error_line[position] = '\0';
-        xsdk_text_draw(92, 456, 1, MUTED, error_line);
-    } else if (storage_count == 0) {
-        xsdk_text_draw(92, 410, 2, WHITE, "Nenhum item encontrado.");
-    } else {
-        for (uint32_t i = 0; i < storage_count; ++i) {
-            char line[STORAGE_NAME_BYTES + 4];
-            unsigned position = 0;
-            if (i == storage_selected) {
-                line[position++] = '>';
-                line[position++] = ' ';
-            } else {
-                line[position++] = ' ';
-                line[position++] = ' ';
-            }
-            const char *name = storage_entries[i].name;
-            while (*name && position < sizeof(line) - 2)
-                line[position++] = *name++;
-            if (storage_entries[i].is_directory && position < sizeof(line) - 1)
-                line[position++] = '/';
-            line[position] = '\0';
-            xsdk_text_draw(112, 394 + (int32_t)i * 34, 1,
-                i == storage_selected ? SELECTED : WHITE, line);
+        int active = current_device_index();
+        if (active >= 0) {
+            xsdk_text_draw(92, 334, 2, SELECTED, storage_devices[active].label);
+            xsdk_text_draw(250, 334, 1, MUTED, storage_devices[active].root);
         }
-        if (storage_more)
-            xsdk_text_draw(112, 394 + (int32_t)storage_count * 34, 1, MUTED,
-                "Mais itens existem nesta unidade...");
+        xsdk_text_draw(92, 372, 1, MUTED, "Unidades encontradas:");
+        int32_t y = 400;
+        for (uint32_t i = 0; i < DEVICE_TOTAL; ++i) {
+            if (!device_present[i]) continue;
+            char label[32];
+            const char *name = storage_devices[i].label;
+            unsigned p = 0;
+            label[p++] = (active == (int)i) ? '>' : ' ';
+            label[p++] = ' ';
+            while (*name && p < sizeof(label) - 1) label[p++] = *name++;
+            label[p] = '\0';
+            xsdk_text_draw(112, y, 1, active == (int)i ? SELECTED : WHITE, label);
+            y += 25;
+        }
+        xsdk_text_draw(360, 372, 1, MUTED, "Itens na raiz:");
+        if (storage_error) {
+            xsdk_text_draw(360, 410, 1, WHITE, "Falha ao ler unidade.");
+        } else if (!storage_count) {
+            xsdk_text_draw(360, 410, 1, WHITE, "Unidade vazia.");
+        } else {
+            for (uint32_t i = 0; i < storage_count && i < 5; ++i) {
+                char line[STORAGE_NAME_BYTES + 4];
+                unsigned p = 0;
+                line[p++] = i == storage_selected ? '>' : ' ';
+                line[p++] = ' ';
+                const char *name = storage_entries[i].name;
+                while (*name && p < sizeof(line) - 2) line[p++] = *name++;
+                if (storage_entries[i].is_directory && p < sizeof(line) - 1) line[p++] = '/';
+                line[p] = '\0';
+                xsdk_text_draw(380, 402 + (int32_t)i * 27, 1,
+                    i == storage_selected ? SELECTED : WHITE, line);
+            }
+            if (storage_more) xsdk_text_draw(380, 540, 1, MUTED, "Mais itens...");
+        }
     }
-
     xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED,
-        "ESQ/DIR: unidade   A: atualizar   B/BACK: voltar");
+        "ESQ/DIR: trocar unidade   A: detectar novamente   B: voltar");
 }
 
 static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t selected,
@@ -285,23 +300,15 @@ int main(void)
                     page = PAGE_ABOUT;
                 else if (selected == 2) {
                     page = PAGE_STORAGE;
-                    storage_drive = 0;
-                    storage_load();
+                    scan_storage_devices();
                 } else {
                     running = false;
                 }
             }
         } else if (page == PAGE_STORAGE) {
-            if (pressed & INPUT_GAMEPAD_DPAD_LEFT) {
-                storage_drive = 0;
-                storage_load();
-            }
-            if (pressed & INPUT_GAMEPAD_DPAD_RIGHT) {
-                storage_drive = 1;
-                storage_load();
-            }
-            if (pressed & INPUT_GAMEPAD_A)
-                storage_load();
+            if (pressed & INPUT_GAMEPAD_DPAD_LEFT) select_device(-1);
+            if (pressed & INPUT_GAMEPAD_DPAD_RIGHT) select_device(1);
+            if (pressed & INPUT_GAMEPAD_A) scan_storage_devices();
             if (storage_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_UP))
                 storage_selected = storage_selected == 0 ? storage_count - 1 : storage_selected - 1;
             if (storage_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_DOWN))
