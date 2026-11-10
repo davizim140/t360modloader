@@ -1,5 +1,8 @@
+#include <dirent.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "xsdk/gpu.h"
 #include "xsdk/kernel.h"
@@ -17,23 +20,146 @@ enum {
     MUTED = 0xFF9BAAB5,
     GREEN = 0xFF7CDA42,
     SELECTED = 0xFFB8F28A,
+    STORAGE_MAX_ENTRIES = 8,
+    STORAGE_NAME_BYTES = 48,
 };
 
 typedef enum {
     PAGE_MENU,
     PAGE_DIAGNOSTICS,
     PAGE_ABOUT,
+    PAGE_STORAGE,
 } Page;
+
+typedef struct {
+    char name[STORAGE_NAME_BYTES];
+    bool is_directory;
+} StorageEntry;
 
 static const char *const menu_items[] = {
     "Diagnostico do console",
     "Sobre o T360 ModLoader",
+    "Armazenamento (somente leitura)",
     "Sair",
 };
+
+static StorageEntry storage_entries[STORAGE_MAX_ENTRIES];
+static uint32_t storage_count;
+static uint32_t storage_selected;
+static uint32_t storage_drive;
+static int storage_error;
+static bool storage_more;
+
+static void copy_bounded(char *destination, size_t destination_size, const char *source)
+{
+    if (destination_size == 0)
+        return;
+    size_t length = strlen(source);
+    if (length >= destination_size)
+        length = destination_size - 1;
+    memcpy(destination, source, length);
+    destination[length] = '\0';
+}
+
+static const char *storage_root(void)
+{
+    return storage_drive == 0 ? "usb:\\" : "hdd:\\";
+}
+
+// This is deliberately lazy: no filesystem call runs during XEX startup.
+static void storage_load(void)
+{
+    storage_count = 0;
+    storage_selected = 0;
+    storage_error = 0;
+    storage_more = false;
+
+    DIR *directory = opendir(storage_root());
+    if (!directory) {
+        storage_error = errno;
+        return;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(directory)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        if (storage_count == STORAGE_MAX_ENTRIES) {
+            storage_more = true;
+            break;
+        }
+
+        StorageEntry *item = &storage_entries[storage_count++];
+        copy_bounded(item->name, sizeof(item->name), entry->d_name);
+        item->is_directory = entry->d_type == DT_DIR;
+    }
+
+    (void)closedir(directory);
+}
 
 static void draw_line(int32_t x, int32_t y, uint32_t color, const char *text)
 {
     xsdk_text_draw(x, y, 2, color, text);
+}
+
+static void draw_storage(uint32_t height)
+{
+    draw_line(92, 250, SELECTED, "ARMAZENAMENTO");
+    xsdk_text_draw(92, 300, 1, MUTED, "Somente leitura - nenhum arquivo sera alterado");
+
+    if (storage_drive == 0) {
+        xsdk_text_draw(92, 346, 2, SELECTED, "[ USB ]");
+        xsdk_text_draw(250, 346, 2, MUTED, "HDD");
+    } else {
+        xsdk_text_draw(92, 346, 2, MUTED, "USB");
+        xsdk_text_draw(250, 346, 2, SELECTED, "[ HDD ]");
+    }
+
+    if (storage_error != 0) {
+        xsdk_text_draw(92, 410, 2, WHITE, "Nao foi possivel abrir esta unidade.");
+        char error_line[64] = "Codigo errno: ";
+        unsigned position = (unsigned)strlen(error_line);
+        unsigned value = (unsigned)storage_error;
+        char digits[12];
+        unsigned digit_count = 0;
+        do {
+            digits[digit_count++] = (char)('0' + value % 10);
+            value /= 10;
+        } while (value && digit_count < sizeof(digits));
+        while (digit_count && position < sizeof(error_line) - 1)
+            error_line[position++] = digits[--digit_count];
+        error_line[position] = '\0';
+        xsdk_text_draw(92, 456, 1, MUTED, error_line);
+    } else if (storage_count == 0) {
+        xsdk_text_draw(92, 410, 2, WHITE, "Nenhum item encontrado.");
+    } else {
+        for (uint32_t i = 0; i < storage_count; ++i) {
+            char line[STORAGE_NAME_BYTES + 4];
+            unsigned position = 0;
+            if (i == storage_selected) {
+                line[position++] = '>';
+                line[position++] = ' ';
+            } else {
+                line[position++] = ' ';
+                line[position++] = ' ';
+            }
+            const char *name = storage_entries[i].name;
+            while (*name && position < sizeof(line) - 2)
+                line[position++] = *name++;
+            if (storage_entries[i].is_directory && position < sizeof(line) - 1)
+                line[position++] = '/';
+            line[position] = '\0';
+            xsdk_text_draw(112, 394 + (int32_t)i * 34, 1,
+                i == storage_selected ? SELECTED : WHITE, line);
+        }
+        if (storage_more)
+            xsdk_text_draw(112, 394 + (int32_t)storage_count * 34, 1, MUTED,
+                "Mais itens existem nesta unidade...");
+    }
+
+    xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED,
+        "ESQ/DIR: unidade   A: atualizar   B/BACK: voltar");
 }
 
 static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t selected,
@@ -80,13 +206,15 @@ static void draw_screen(uint32_t width, uint32_t height, Page page, uint32_t sel
         xsdk_text_draw(92, 424, 2, WHITE, "Interface: renderizacao ativa");
         xsdk_text_draw(92, 500, 1, MUTED, "Este teste nao altera arquivos do console.");
         xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED, "B ou BACK: voltar");
-    } else {
+    } else if (page == PAGE_ABOUT) {
         draw_line(92, 250, SELECTED, "SOBRE");
         xsdk_text_draw(92, 316, 2, WHITE, "T360 ModLoader");
         xsdk_text_draw(92, 370, 2, WHITE, "Projeto comunitario para Terraria Xbox 360.");
         xsdk_text_draw(92, 424, 2, WHITE, "O carregamento de mods ainda nao esta implementado.");
         xsdk_text_draw(92, 478, 2, WHITE, "Nenhum arquivo do Terraria e modificado.");
         xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED, "B ou BACK: voltar");
+    } else {
+        draw_storage(height);
     }
 
     xsdk_gpu_resolve(address, width, height, CLEAR_COLOR);
@@ -147,17 +275,39 @@ int main(void)
                 page = PAGE_MENU;
         } else if (page == PAGE_MENU) {
             if (pressed & INPUT_GAMEPAD_DPAD_UP)
-                selected = selected == 0 ? 2 : selected - 1;
+                selected = selected == 0 ? 3 : selected - 1;
             if (pressed & INPUT_GAMEPAD_DPAD_DOWN)
-                selected = (selected + 1) % 3;
+                selected = (selected + 1) % 4;
             if (pressed & INPUT_GAMEPAD_A) {
                 if (selected == 0)
                     page = PAGE_DIAGNOSTICS;
                 else if (selected == 1)
                     page = PAGE_ABOUT;
-                else
+                else if (selected == 2) {
+                    page = PAGE_STORAGE;
+                    storage_drive = 0;
+                    storage_load();
+                } else {
                     running = false;
+                }
             }
+        } else if (page == PAGE_STORAGE) {
+            if (pressed & INPUT_GAMEPAD_DPAD_LEFT) {
+                storage_drive = 0;
+                storage_load();
+            }
+            if (pressed & INPUT_GAMEPAD_DPAD_RIGHT) {
+                storage_drive = 1;
+                storage_load();
+            }
+            if (pressed & INPUT_GAMEPAD_A)
+                storage_load();
+            if (storage_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_UP))
+                storage_selected = storage_selected == 0 ? storage_count - 1 : storage_selected - 1;
+            if (storage_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_DOWN))
+                storage_selected = (storage_selected + 1) % storage_count;
+            if (pressed & INPUT_GAMEPAD_B)
+                page = PAGE_MENU;
         } else if (pressed & INPUT_GAMEPAD_B) {
             page = PAGE_MENU;
         }
