@@ -190,50 +190,6 @@ $('list').addEventListener('click',async()=>{
   ];
   $('files').textContent=lines.join('\\n');
 
-  const seen=new Set();
-  for(let bi=0;bi<tableCount;bi++){
-   if(current===0xFFFFFF)throw new Error('Cadeia da tabela terminou antes dos '+tableCount+' blocos esperados.');
-   if(seen.has(current))throw new Error('Ciclo detectado na cadeia da tabela STFS.');
-   seen.add(current);
-   const off=blockOffset(current);
-   if(off+0x1000>all.length)throw new Error('Bloco da tabela fora do arquivo: '+current+' (offset '+hex(off)+').');
-   for(let j=0;j<64;j++){
-    const p=off+j*0x40;
-    if(all[p]===0){bi=tableCount;break}
-    const fl=all[p+0x28],len=fl&0x3F;
-    let name='';
-    const nameBytes=all.slice(p,p+Math.min(len||40,40));
-    for(const c of nameBytes){if(!c)break;name+=String.fromCharCode(c)}
-    if(!name)continue;
-    const u24at=q=>all[q]|(all[q+1]<<8)|(all[q+2]<<16);
-    const isDir=(fl&0x80)!==0;
-    const parent=(all[p+0x32]<<8)|all[p+0x33];
-    const size=((all[p+0x34]*0x1000000)+(all[p+0x35]<<16)+(all[p+0x36]<<8)+all[p+0x37])>>>0;
-    entries.push({name,isDir,parent,size,start:u24at(p+0x2F),allocated:u24at(p+0x2C)});
-    if(entries.length>320)throw new Error('Limite de 320 entradas excedido.');
-   }
-   const n=nextBlock(current);
-   if(bi<tableCount-1)current=n;
-  }
-  const pathOf=(entry,index)=>{
-   const parts=[entry.name],visited=new Set([index]);
-   let parent=entry.parent,steps=0;
-   while(parent!==0xFFFF&&steps++<entries.length){
-    if(parent>=entries.length||visited.has(parent))break;
-    visited.add(parent);const e=entries[parent];parts.unshift(e.name);parent=e.parent;
-   }
-   return (parts.length?'/':'')+parts.join('/');
-  };
-  const lines=[
-   'STFS: tabela lida em modo somente leitura',
-   'Header size: '+hex(headerSize)+' | início alinhado: '+hex(dataStart),
-   'Descritor: '+descSize+' bytes | flags: 0x'+flags.toString(16).padStart(2,'0')+' | read_only_format: SIM',
-   'Tabela: bloco inicial '+tableStart+' | blocos declarados '+tableCount,
-   'Entradas encontradas: '+entries.length,
-   '',
-   ...entries.map((e,i)=>(e.isDir?'[DIR] ':'[FILE] ')+pathOf(e,i)+(e.isDir?'':' | '+e.size.toLocaleString('pt-BR')+' bytes | bloco '+e.start+' | blocos '+e.allocated))
-  ];
-  $('files').textContent=lines.join('\n');
  }catch(e){$('files').textContent='Falha na leitura STFS: '+e.message+'\nNenhum dado foi gravado ou alterado.'}
 });
 </script>
