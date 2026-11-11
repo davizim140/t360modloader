@@ -219,6 +219,106 @@ static bool read_dotnet_string(FILE *file, char *out, size_t capacity)
     return false;
 }
 
+typedef struct {
+    uint32_t state[5];
+    uint64_t bit_count;
+    uint8_t block[64];
+    size_t used;
+} Sha1Context;
+
+static uint32_t sha1_rotate(uint32_t value, unsigned bits)
+{
+    return (value << bits) | (value >> (32u - bits));
+}
+
+static void sha1_transform(Sha1Context *ctx, const uint8_t block[64])
+{
+    uint32_t w[80];
+    for (unsigned i = 0; i < 16; ++i) {
+        const unsigned j = i * 4;
+        w[i] = ((uint32_t)block[j] << 24) | ((uint32_t)block[j + 1] << 16) |
+            ((uint32_t)block[j + 2] << 8) | (uint32_t)block[j + 3];
+    }
+    for (unsigned i = 16; i < 80; ++i)
+        w[i] = sha1_rotate(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
+
+    uint32_t a = ctx->state[0], b = ctx->state[1], cc = ctx->state[2];
+    uint32_t d = ctx->state[3], e = ctx->state[4];
+    for (unsigned i = 0; i < 80; ++i) {
+        uint32_t f, k;
+        if (i < 20) { f = (b & cc) | ((~b) & d); k = 0x5A827999u; }
+        else if (i < 40) { f = b ^ cc ^ d; k = 0x6ED9EBA1u; }
+        else if (i < 60) { f = (b & cc) | (b & d) | (cc & d); k = 0x8F1BBCDCu; }
+        else { f = b ^ cc ^ d; k = 0xCA62C1D6u; }
+        uint32_t temp = sha1_rotate(a, 5) + f + e + k + w[i];
+        e = d; d = cc; cc = sha1_rotate(b, 30); b = a; a = temp;
+    }
+    ctx->state[0] += a; ctx->state[1] += b; ctx->state[2] += cc;
+    ctx->state[3] += d; ctx->state[4] += e;
+}
+
+static void sha1_init(Sha1Context *ctx)
+{
+    ctx->state[0] = 0x67452301u; ctx->state[1] = 0xEFCDAB89u;
+    ctx->state[2] = 0x98BADCFEu; ctx->state[3] = 0x10325476u;
+    ctx->state[4] = 0xC3D2E1F0u;
+    ctx->bit_count = 0; ctx->used = 0;
+}
+
+static void sha1_update(Sha1Context *ctx, const uint8_t *data, size_t length)
+{
+    ctx->bit_count += (uint64_t)length * 8u;
+    while (length) {
+        size_t take = 64u - ctx->used;
+        if (take > length) take = length;
+        memcpy(ctx->block + ctx->used, data, take);
+        ctx->used += take; data += take; length -= take;
+        if (ctx->used == 64u) {
+            sha1_transform(ctx, ctx->block);
+            ctx->used = 0;
+        }
+    }
+}
+
+static void sha1_final(Sha1Context *ctx, uint8_t digest[20])
+{
+    const uint64_t bits = ctx->bit_count;
+    uint8_t pad = 0x80u;
+    sha1_update(ctx, &pad, 1);
+    uint8_t zero = 0;
+    while (ctx->used != 56u) sha1_update(ctx, &zero, 1);
+    uint8_t length_bytes[8];
+    for (unsigned i = 0; i < 8; ++i)
+        length_bytes[7u - i] = (uint8_t)(bits >> (i * 8u));
+    sha1_update(ctx, length_bytes, sizeof(length_bytes));
+    for (unsigned i = 0; i < 5; ++i) {
+        digest[i * 4] = (uint8_t)(ctx->state[i] >> 24);
+        digest[i * 4 + 1] = (uint8_t)(ctx->state[i] >> 16);
+        digest[i * 4 + 2] = (uint8_t)(ctx->state[i] >> 8);
+        digest[i * 4 + 3] = (uint8_t)ctx->state[i];
+    }
+}
+
+static bool verify_payload_sha1(FILE *file, long payload_start, long file_size,
+    const uint8_t expected[20])
+{
+    if (payload_start < 0 || file_size < payload_start ||
+        fseek(file, payload_start, SEEK_SET) != 0) return false;
+    Sha1Context ctx;
+    sha1_init(&ctx);
+    uint8_t buffer[1024];
+    long remaining = file_size - payload_start;
+    while (remaining > 0) {
+        size_t chunk = remaining > (long)sizeof(buffer) ? sizeof(buffer) : (size_t)remaining;
+        if (!read_exact(file, buffer, chunk)) return false;
+        sha1_update(&ctx, buffer, chunk);
+        remaining -= (long)chunk;
+    }
+    uint8_t actual[20];
+    sha1_final(&ctx, actual);
+    return memcmp(actual, expected, sizeof(actual)) == 0;
+}
+
 static bool skip_exact(FILE *file, uint32_t bytes)
 {
     uint8_t scratch[128];
@@ -231,8 +331,8 @@ static bool skip_exact(FILE *file, uint32_t bytes)
 }
 
 /*
- * Performs bounded structural validation of the documented tModLoader
- * .tmod container. It does not verify SHA-1/signature or runtime compatibility.
+ * Performs bounded structural validation and verifies the payload SHA-1.
+ * The RSA mod-browser signature and runtime compatibility are not verified.
  */
 static bool inspect_tmod(const char *path, TmodInfo *info, const char **reason)
 {
@@ -241,6 +341,7 @@ static bool inspect_tmod(const char *path, TmodInfo *info, const char **reason)
 
     bool valid = false;
     uint8_t magic[4];
+    uint8_t expected_hash[20];
     uint32_t payload_length = 0;
     uint32_t count = 0;
     unsigned long long compressed_total = 0;
@@ -258,7 +359,8 @@ static bool inspect_tmod(const char *path, TmodInfo *info, const char **reason)
         goto done;
     }
     if (!read_dotnet_string(file, info->tml_version, sizeof(info->tml_version)) ||
-        !skip_exact(file, 20u + 256u) ||
+        !read_exact(file, expected_hash, sizeof(expected_hash)) ||
+        !skip_exact(file, 256u) ||
         !read_u32_le(file, &payload_length)) {
         *reason = "Cabecalho incompleto";
         goto done;
@@ -268,6 +370,14 @@ static bool inspect_tmod(const char *path, TmodInfo *info, const char **reason)
     if (payload_start < 0 || payload_start > file_size ||
         payload_length != (uint32_t)(file_size - payload_start)) {
         *reason = "Tamanho interno inconsistente";
+        goto done;
+    }
+    if (!verify_payload_sha1(file, payload_start, file_size, expected_hash)) {
+        *reason = "Hash SHA-1 divergente";
+        goto done;
+    }
+    if (fseek(file, payload_start, SEEK_SET) != 0) {
+        *reason = "Falha de leitura";
         goto done;
     }
     if (!read_dotnet_string(file, info->internal_name, sizeof(info->internal_name)) ||
