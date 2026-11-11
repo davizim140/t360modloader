@@ -122,6 +122,30 @@ $('list').addEventListener('click',async()=>{
   let bufferForHash,bufferForHashStart=0;
   const all=new Uint8Array(await f.arrayBuffer());
   bufferForHash=all;
+  const debugLines=[
+   'DIAGNÓSTICO STFS (somente leitura)',
+   'Arquivo: '+f.size+' bytes',
+   'Header size lido em 0x340: '+hex(headerSize),
+   'Início dos blocos alinhado: '+hex(dataStart),
+   'Descritor flags: 0x'+flags.toString(16).padStart(2,'0')+' | read_only_format: '+(readOnly?'SIM':'NÃO'),
+   'Tabela declarada: start='+tableStart+' count='+tableCount,
+   '',
+   'Hash table nível 0 (primeiras 5 entradas):'
+  ];
+  for(let k=0;k<5;k++){
+   const hp=dataStart+k*0x18+0x14;
+   if(hp+4>all.length){debugLines.push('hash['+k+']: fora do arquivo');continue}
+   const rawHash=new DataView(all.buffer,all.byteOffset,all.byteLength).getUint32(hp,false);
+   debugLines.push('hash['+k+'] @ '+hex(hp)+': raw=0x'+rawHash.toString(16).padStart(8,'0').toUpperCase()+' next=0x'+(rawHash&0xFFFFFF).toString(16).padStart(6,'0').toUpperCase()+' state='+((rawHash>>>30)&3));
+  }
+  debugLines.push('',
+   'Blocos de dados (primeiros 16 bytes em cada bloco calculado):');
+  for(let k=0;k<5;k++){
+   const bp=blockOffset(k);
+   debugLines.push('data['+k+'] @ '+hex(bp)+': '+Array.from(all.slice(bp,bp+16)).map(x=>x.toString(16).padStart(2,'0')).join(' '));
+  }
+  $('files').textContent=debugLines.join('\\n');
+  return;
   const entries=[];
   let current=tableStart;
   const seen=new Set();
