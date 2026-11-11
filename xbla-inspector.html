@@ -29,7 +29,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#cce5ff;line-height:1.5}
 <section class="panel">
 <strong>Conteúdo do pacote</strong>
 <p class="small">Tenta localizar a tabela TUPD conhecida em atualizações Xbox 360. A leitura permanece local e somente leitura.</p>
-<button id="list" type="button">Listar arquivos do pacote</button>
+<button id="list" type="button" style="width:100%;min-height:52px;font-size:16px;touch-action:manipulation">Listar arquivos do pacote</button>
 <pre id="files">Aguardando seleção do arquivo.</pre>
 </section>
 <section class="panel" aria-live="polite">
@@ -106,22 +106,7 @@ $('list').addEventListener('click',async()=>{
    }
    return dataStart+block*0x1000;
   };
-  const blocksPerHashTable=readOnly?1:2;
-  const nextBlock=index=>{
-   let hashBlock=0;
-   if(index>=170){
-    const step0=170+blocksPerHashTable;
-    hashBlock=Math.floor(index/170)*step0+(Math.floor(index/28900)+1)*blocksPerHashTable;
-    if(index>=28900)hashBlock+=blocksPerHashTable;
-   }
-   const pos=dataStart+hashBlock*0x1000+(index%170)*0x18+0x14;
-   if(pos+4>f.size)throw new Error('Tabela hash fora do arquivo no bloco '+index+'.');
-   const v=new DataView(bufferForHash.buffer,bufferForHash.byteOffset,bufferForHash.byteLength);
-   return v.getUint32(pos-bufferForHashStart,false)&0xFFFFFF;
-  };
-  let bufferForHash,bufferForHashStart=0;
   const all=new Uint8Array(await f.arrayBuffer());
-  bufferForHash=all;
   const entries=[];
   let current=tableStart;
   const seen=new Set();
