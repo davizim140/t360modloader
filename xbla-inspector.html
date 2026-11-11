@@ -200,7 +200,7 @@ $('list').addEventListener('click',async()=>{
   $('files').textContent=lines.join('\n');
   const extractBox=$('extract');
   extractBox.textContent='';
-  for(const target of ['/default.xex','/game.exe.xex']){
+  for(const target of ['/default.xex','/game.exe.xex','/HostLoader.dll']){
    const entry=entries.find((e,i)=>!e.isDir&&pathOf(e,i)===target);
    if(entry){
     const button=document.createElement('button');
