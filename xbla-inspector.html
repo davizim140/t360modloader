@@ -25,6 +25,13 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#cce5ff;line-height:1.5}
 <br><button id="analyze" type="button">Analisar cabeçalho</button>
 <p class="small">A ferramenta lê somente os primeiros 64 KiB. Não extrai, altera ou grava o pacote.</p>
 </section>
+
+<section class="panel">
+<strong>Conteúdo do pacote</strong>
+<p class="small">Tenta localizar a tabela TUPD conhecida em atualizações Xbox 360. A leitura permanece local e somente leitura.</p>
+<button id="list" type="button">Listar arquivos do pacote</button>
+<pre id="files">Aguardando seleção do arquivo.</pre>
+</section>
 <section class="panel" aria-live="polite">
 <strong>Resultado</strong>
 <pre id="out">Aguardando seleção do arquivo.</pre>
@@ -68,6 +75,31 @@ $('analyze').addEventListener('click',async()=>{
   }
   $('out').textContent=lines.join('\n');
  }catch(e){$('out').textContent='Falha ao ler o arquivo: '+e.message}
+});
+
+$('list').addEventListener('click',async()=>{
+ const f=$('file').files[0];if(!f){$('files').textContent='Selecione o arquivo primeiro.';return}
+ $('files').textContent='Lendo tabela...';
+ try{
+  const buf=await f.arrayBuffer(),b=new Uint8Array(buf),v=new DataView(buf);
+  const sig=String.fromCharCode(...b.slice(0x971A,0x971E));
+  if(sig!=='TUPD'){
+   $('files').textContent='Assinatura TUPD não encontrada em 0x971A (encontrado: '+JSON.stringify(sig)+'). Layout não confirmado; nada foi alterado.';
+   return;
+  }
+  const base=0xC000,entrySize=0x40,rows=[];
+  if(b.length<base+entrySize){$('files').textContent='Arquivo não contém a área inicial da tabela.';return}
+  for(let off=base;off+entrySize<=b.length;off+=entrySize){
+   if(b[off]===0)break;
+   let end=off;while(end<off+40&&b[end]!==0)end++;
+   const name=new TextDecoder('ascii').decode(b.slice(off,end));
+   const flags=b[off+0x28],isDir=(flags&0x80)!==0;
+   const size=v.getUint32(off+0x34,false);
+   rows.push((isDir?'[PASTA] ':'[ARQUIVO] ')+name+(isDir?'':' — '+size.toLocaleString('pt-BR')+' bytes'));
+   if(rows.length>=1024){rows.push('Limite de segurança: 1024 entradas.');break}
+  }
+  $('files').textContent='Assinatura TUPD: confirmada\nTabela candidata: 0xC000\nEntradas listadas: '+rows.length+'\n\n'+(rows.length?rows.join('\n'):'Nenhuma entrada reconhecida. O layout precisa de outra validação.');
+ }catch(e){$('files').textContent='Falha ao ler: '+e.message}
 });
 </script>
 </body></html>
