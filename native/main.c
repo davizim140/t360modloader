@@ -836,7 +836,7 @@ static void draw_packages(uint32_t height)
             (void)snprintf(detail, sizeof(detail), "tModLoader: %s", item->tml_version);
             xsdk_text_draw(760, 592, 1, MUTED, detail);
         }
-        xsdk_text_draw(760, 624, 1, MUTED, "Hash/assinatura nao verificados");
+        xsdk_text_draw(760, 624, 1, MUTED, "SHA-1 OK; assinatura RSA nao verificada");
         xsdk_text_draw(760, 660, 1, MUTED, "A: ver indice interno");
         char counter[48];
         (void)snprintf(counter, sizeof(counter), "Pacote %u de %u",
