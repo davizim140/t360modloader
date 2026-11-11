@@ -41,7 +41,7 @@ $('analyze').addEventListener('click',async()=>{
  try{
   const buf=await f.slice(0,0x10000).arrayBuffer(),b=new Uint8Array(buf),v=new DataView(buf);
   if(b.length<4)throw new Error('Arquivo pequeno demais para identificar.');
-  const magic=ascii(b,0,4),known=['LIVE','PIRS','CON '].includes(magic);
+  const magic=String.fromCharCode(...b.slice(0,4)),known=['LIVE','PIRS','CON '].includes(magic);
   let lines=[
    'Arquivo: '+f.name,
    'Tamanho: '+f.size.toLocaleString('pt-BR')+' bytes ('+(f.size/1048576).toFixed(2)+' MiB)',
