@@ -76,6 +76,8 @@ static bool package_entries_truncated;
 static char decompress_status[64] = "A: testar descompressao em RAM";
 static uint32_t decompress_actual_size;
 static uint32_t decompress_expected_size;
+static char decompressed_preview[97];
+static bool decompressed_preview_valid;
 
 static const char *const menu_items[] = {
     "Diagnostico do console",
@@ -517,6 +519,8 @@ static void test_selected_decompression(void)
     const TmodEntry *entry = &package_entries[package_entry_selected];
     decompress_actual_size = 0;
     decompress_expected_size = entry->uncompressed_size;
+    decompressed_preview[0] = '\0';
+    decompressed_preview_valid = false;
     if (entry->uncompressed_size > MAX_DECOMPRESS_BYTES ||
         entry->compressed_size > MAX_DECOMPRESS_BYTES) {
         copy_bounded(decompress_status, sizeof(decompress_status), "ARQUIVO ACIMA DO LIMITE (2 MiB)");
@@ -570,6 +574,24 @@ static void test_selected_decompression(void)
         decompress_actual_size = (uint32_t)out_len;
     }
     free(input);
+    if (decompress_actual_size == decompress_expected_size) {
+        const char *dot = strrchr(entry->name, '.');
+        bool text_file = dot && (!strcmp(dot, ".txt") || !strcmp(dot, ".TXT") ||
+            !strcmp(dot, ".json") || !strcmp(dot, ".JSON") ||
+            !strcmp(dot, ".xml") || !strcmp(dot, ".XML") ||
+            !strcmp(dot, ".cs") || !strcmp(dot, ".CS") ||
+            !strcmp(dot, ".cfg") || !strcmp(dot, ".CFG") ||
+            !strcmp(dot, ".h") || !strcmp(dot, ".H"));
+        if (text_file) {
+            size_t preview_size = decompress_actual_size < 96u ? decompress_actual_size : 96u;
+            for (size_t i = 0; i < preview_size; ++i) {
+                unsigned char ch = output[i];
+                decompressed_preview[i] = (ch >= 32u && ch <= 126u) ? (char)ch : '.';
+            }
+            decompressed_preview[preview_size] = '\0';
+            decompressed_preview_valid = preview_size > 0;
+        }
+    }
     free(output);
     if (decompress_actual_size != decompress_expected_size) {
         copy_bounded(decompress_status, sizeof(decompress_status), "TAMANHO DESCOMPACTADO DIFERENTE");
@@ -790,6 +812,15 @@ static void draw_package_files(uint32_t height)
             (void)snprintf(detail, sizeof(detail), "Resultado: %u / %u bytes",
                 (unsigned)decompress_actual_size, (unsigned)decompress_expected_size);
             xsdk_text_draw(760, 544, 1, MUTED, detail);
+        }
+        if (decompressed_preview_valid) {
+            xsdk_text_draw(760, 580, 1, SELECTED, "PREVIA TEXTO (96 bytes iniciais)");
+            for (unsigned line = 0; line < 3; ++line) {
+                char preview_line[33];
+                memcpy(preview_line, decompressed_preview + line * 32u, 32u);
+                preview_line[32] = '\0';
+                xsdk_text_draw(760, 602 + (int32_t)line * 18, 1, WHITE, preview_line);
+            }
         }
     }
     if (package_entries_truncated)
