@@ -76,7 +76,9 @@ static bool package_entries_truncated;
 static char decompress_status[64] = "A: testar descompressao em RAM";
 static uint32_t decompress_actual_size;
 static uint32_t decompress_expected_size;
-static char decompressed_preview[97];
+static unsigned char *decompressed_data;
+static size_t decompressed_data_size;
+static size_t decompressed_page_offset;
 static bool decompressed_preview_valid;
 
 static const char *const menu_items[] = {
@@ -519,7 +521,10 @@ static void test_selected_decompression(void)
     const TmodEntry *entry = &package_entries[package_entry_selected];
     decompress_actual_size = 0;
     decompress_expected_size = entry->uncompressed_size;
-    decompressed_preview[0] = '\0';
+    free(decompressed_data);
+    decompressed_data = NULL;
+    decompressed_data_size = 0;
+    decompressed_page_offset = 0;
     decompressed_preview_valid = false;
     if (entry->uncompressed_size > MAX_DECOMPRESS_BYTES ||
         entry->compressed_size > MAX_DECOMPRESS_BYTES) {
@@ -582,14 +587,11 @@ static void test_selected_decompression(void)
             !strcmp(dot, ".cs") || !strcmp(dot, ".CS") ||
             !strcmp(dot, ".cfg") || !strcmp(dot, ".CFG") ||
             !strcmp(dot, ".h") || !strcmp(dot, ".H"));
-        if (text_file) {
-            size_t preview_size = decompress_actual_size < 96u ? decompress_actual_size : 96u;
-            for (size_t i = 0; i < preview_size; ++i) {
-                unsigned char ch = output[i];
-                decompressed_preview[i] = (ch >= 32u && ch <= 126u) ? (char)ch : '.';
-            }
-            decompressed_preview[preview_size] = '\0';
-            decompressed_preview_valid = preview_size > 0;
+        if (text_file && decompress_actual_size > 0) {
+            decompressed_data = output;
+            decompressed_data_size = decompress_actual_size;
+            decompressed_preview_valid = true;
+            output = NULL;
         }
     }
     free(output);
@@ -784,7 +786,7 @@ static void draw_storage(uint32_t height)
 static void draw_package_files(uint32_t height)
 {
     draw_line(80, 238, SELECTED, "ARQUIVOS INTERNOS DO PACOTE");
-    xsdk_text_draw(80, 278, 1, MUTED, "A descompacta o arquivo selecionado apenas na RAM");
+    xsdk_text_draw(80, 278, 1, MUTED, "A descompacta em RAM; ESQ/DIR percorre o texto");
     if (!package_entry_count) {
         xsdk_text_draw(80, 360, 2, WHITE, "Nenhum arquivo listado.");
     } else {
@@ -813,11 +815,26 @@ static void draw_package_files(uint32_t height)
                 (unsigned)decompress_actual_size, (unsigned)decompress_expected_size);
             xsdk_text_draw(760, 544, 1, MUTED, detail);
         }
-        if (decompressed_preview_valid) {
-            xsdk_text_draw(760, 580, 1, SELECTED, "PREVIA TEXTO (96 bytes iniciais)");
+        if (decompressed_preview_valid && decompressed_data) {
+            char page_label[128];
+            (void)snprintf(page_label, sizeof(page_label), "TEXTO EM RAM: bytes %u-%u de %u",
+                (unsigned)decompressed_page_offset,
+                (unsigned)((decompressed_page_offset + 95u < decompressed_data_size) ?
+                    decompressed_page_offset + 95u : decompressed_data_size - 1u),
+                (unsigned)decompressed_data_size);
+            xsdk_text_draw(760, 580, 1, SELECTED, page_label);
             for (unsigned line = 0; line < 3; ++line) {
                 char preview_line[33];
-                memcpy(preview_line, decompressed_preview + line * 32u, 32u);
+                size_t start = decompressed_page_offset + line * 32u;
+                for (unsigned col = 0; col < 32; ++col) {
+                    size_t pos = start + col;
+                    if (pos >= decompressed_data_size) {
+                        preview_line[col] = '\0';
+                        break;
+                    }
+                    unsigned char ch = decompressed_data[pos];
+                    preview_line[col] = (ch >= 32u && ch <= 126u) ? (char)ch : '.';
+                }
                 preview_line[32] = '\0';
                 xsdk_text_draw(760, 602 + (int32_t)line * 18, 1, WHITE, preview_line);
             }
@@ -826,7 +843,7 @@ static void draw_package_files(uint32_t height)
     if (package_entries_truncated)
         xsdk_text_draw(760, 500, 1, MUTED, "Lista interna limitada.");
     xsdk_text_draw(72, (int32_t)height - 72, 1, MUTED,
-        "CIMA/BAIXO: navegar  A: descompactar em RAM  B: voltar");
+        "CIMA/BAIXO: arquivo  ESQ/DIR: pagina de texto  A: ler  B: voltar");
 }
 
 static void draw_packages(uint32_t height)
@@ -1014,12 +1031,30 @@ int main(void)
                 }
             }
         } else if (page == PAGE_PACKAGE_FILES) {
-            if (package_entry_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_UP))
+            if (package_entry_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_UP)) {
                 package_entry_selected = package_entry_selected == 0 ? package_entry_count - 1 : package_entry_selected - 1;
-            if (package_entry_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_DOWN))
+                free(decompressed_data); decompressed_data = NULL; decompressed_data_size = 0;
+                decompressed_preview_valid = false; decompressed_page_offset = 0;
+            }
+            if (package_entry_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_DOWN)) {
                 package_entry_selected = (package_entry_selected + 1) % package_entry_count;
+                free(decompressed_data); decompressed_data = NULL; decompressed_data_size = 0;
+                decompressed_preview_valid = false; decompressed_page_offset = 0;
+            }
+            if (decompressed_preview_valid && (pressed & INPUT_GAMEPAD_DPAD_RIGHT)) {
+                if (decompressed_page_offset + 96u < decompressed_data_size)
+                    decompressed_page_offset += 96u;
+            }
+            if (decompressed_preview_valid && (pressed & INPUT_GAMEPAD_DPAD_LEFT)) {
+                decompressed_page_offset = decompressed_page_offset >= 96u ?
+                    decompressed_page_offset - 96u : 0;
+            }
             if (pressed & INPUT_GAMEPAD_A) test_selected_decompression();
-            if (pressed & INPUT_GAMEPAD_B) page = PAGE_PACKAGES;
+            if (pressed & INPUT_GAMEPAD_B) {
+                free(decompressed_data); decompressed_data = NULL; decompressed_data_size = 0;
+                decompressed_preview_valid = false; decompressed_page_offset = 0;
+                page = PAGE_PACKAGES;
+            }
         } else if (page == PAGE_PACKAGES) {
             if (mod_package_count > 0 && (pressed & INPUT_GAMEPAD_DPAD_UP))
                 mod_package_selected = mod_package_selected == 0 ? mod_package_count - 1 : mod_package_selected - 1;
