@@ -188,7 +188,7 @@ $('list').addEventListener('click',async()=>{
    '',
    ...entries.map((e,i)=>(e.isDir?'[DIR] ':'[FILE] ')+pathOf(e,i)+(e.isDir?'':' | '+e.size.toLocaleString('pt-BR')+' bytes | bloco '+e.start+' | blocos '+e.allocated))
   ];
-  $('files').textContent=lines.join('\\n');
+  $('files').textContent=lines.join('\n');
 
  }catch(e){$('files').textContent='Falha na leitura STFS: '+e.message+'\nNenhum dado foi gravado ou alterado.'}
 });
