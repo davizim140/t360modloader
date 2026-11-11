@@ -93,7 +93,7 @@ $('list').addEventListener('click',async()=>{
   const dataStart=(headerSize+0xFFF)&~0xFFF;
   const readOnly=(flags&0x01)!==0;
   if(descSize!==0x24)throw new Error('Tamanho inesperado do descritor: 0x'+descSize.toString(16));
-  if(!readOnly)throw new Error('O descritor não indica read_only_format. A leitura foi interrompida para não adivinhar a posição das cópias de hash.');
+  if(!readOnly)throw new Error('Pacote STFS não está em read_only_format; seleção das cópias hash exige tratamento adicional. Leitura interrompida com segurança.');
   if(!tableCount||tableCount>64)throw new Error('Quantidade de blocos da tabela fora do limite seguro: '+tableCount);
   if(tableStart>0xFFFFFF)throw new Error('Bloco inicial inválido.');
   if(headerSize<0x379||dataStart>=f.size)throw new Error('Tamanho de cabeçalho inválido: '+hex(headerSize));
@@ -106,16 +106,18 @@ $('list').addEventListener('click',async()=>{
    }
    return dataStart+block*0x1000;
   };
+  const blocksPerHashTable=readOnly?1:2;
   const nextBlock=index=>{
    let hashBlock=0;
    if(index>=170){
-    hashBlock=Math.floor(index/170)*171+(Math.floor(index/28900)+1);
-    if(index>=28900)hashBlock++;
+    const step0=170+blocksPerHashTable;
+    hashBlock=Math.floor(index/170)*step0+(Math.floor(index/28900)+1)*blocksPerHashTable;
+    if(index>=28900)hashBlock+=blocksPerHashTable;
    }
    const pos=dataStart+hashBlock*0x1000+(index%170)*0x18+0x14;
    if(pos+4>f.size)throw new Error('Tabela hash fora do arquivo no bloco '+index+'.');
    const v=new DataView(bufferForHash.buffer,bufferForHash.byteOffset,bufferForHash.byteLength);
-   return v.getUint32(pos-bufferForHashStart,true)&0xFFFFFF;
+   return v.getUint32(pos-bufferForHashStart,false)&0xFFFFFF;
   };
   let bufferForHash,bufferForHashStart=0;
   const all=new Uint8Array(await f.arrayBuffer());
