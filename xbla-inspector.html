@@ -31,6 +31,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#cce5ff;line-height:1.5}
 <p class="small">Tenta localizar a tabela TUPD conhecida em atualizações Xbox 360. A leitura permanece local e somente leitura.</p>
 <button id="list" type="button" style="width:100%;min-height:52px;font-size:16px;touch-action:manipulation">Listar arquivos do pacote</button>
 <pre id="files">Aguardando seleção do arquivo.</pre>
+<div id="extract"></div>
 </section>
 <section class="panel" aria-live="polite">
 <strong>Resultado</strong>
@@ -154,6 +155,29 @@ $('list').addEventListener('click',async()=>{
    if(bi<tableCount-1)current=n;
    else if(n!==0xFFFFFF)chain.push('next='+n);
   }
+  const downloadEntry=entry=>{
+   if(!entry||entry.isDir)throw new Error('Arquivo não encontrado na tabela.');
+   const output=new Uint8Array(entry.size);
+   let current=entry.start,written=0;
+   const visited=new Set();
+   for(let i=0;i<entry.allocated&&written<entry.size;i++){
+    if(current===0xFFFFFF||visited.has(current))throw new Error('Cadeia de dados inválida no bloco '+current+'.');
+    visited.add(current);
+    const off=blockOffset(current);
+    if(off+0x1000>all.length)throw new Error('Bloco de dados fora do pacote: '+current+'.');
+    const count=Math.min(0x1000,entry.size-written);
+    output.set(all.subarray(off,off+count),written);
+    written+=count;
+    if(written<entry.size)current=nextBlock(current);
+   }
+   if(written!==entry.size)throw new Error('Extração incompleta: '+written+' de '+entry.size+' bytes.');
+   const blob=new Blob([output],{type:'application/octet-stream'});
+   const url=URL.createObjectURL(blob);
+   const a=document.createElement('a');
+   a.href=url;a.download=entry.name;
+   document.body.appendChild(a);a.click();a.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),1500);
+  };
   const pathOf=(entry,index)=>{
    const parts=[entry.name],visited=new Set([index]);
    let parent=entry.parent,steps=0;
@@ -174,6 +198,20 @@ $('list').addEventListener('click',async()=>{
    ...entries.map((e,i)=>(e.isDir?'[DIR] ':'[FILE] ')+pathOf(e,i)+(e.isDir?'':' | '+e.size.toLocaleString('pt-BR')+' bytes | bloco '+e.start+' | blocos '+e.allocated))
   ];
   $('files').textContent=lines.join('\n');
+  const extractBox=$('extract');
+  extractBox.textContent='';
+  for(const target of ['/default.xex','/game.exe.xex']){
+   const entry=entries.find((e,i)=>!e.isDir&&pathOf(e,i)===target);
+   if(entry){
+    const button=document.createElement('button');
+    button.type='button';button.style.width='100%';button.style.minHeight='50px';
+    button.textContent='Baixar '+target+' ('+entry.size.toLocaleString('pt-BR')+' bytes)';
+    button.addEventListener('click',()=>{
+     try{downloadEntry(entry)}catch(err){$('files').textContent='Falha ao extrair '+target+': '+err.message}
+    });
+    extractBox.appendChild(button);
+   }
+  }
 
  }catch(e){$('files').textContent='Falha na leitura STFS: '+e.message+'\nNenhum dado foi gravado ou alterado.'}
 });
