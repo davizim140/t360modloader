@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>T360 · Analisador XBLA</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,Segoe UI,sans-serif;background:#10151d;color:#edf3fb}
+body{margin:0;padding:22px;max-width:760px;margin-inline:auto}
+h1{font-size:1.55rem;margin:.2rem 0}.sub{color:#aab8ca;line-height:1.5}
+.panel{background:#192331;border:1px solid #304154;border-radius:14px;padding:16px;margin:16px 0}
+input{max-width:100%;padding:12px;background:#0d141d;border:1px solid #52677f;border-radius:9px;color:white}
+button{padding:11px 15px;border:0;border-radius:9px;background:#55c78a;color:#07150e;font-weight:700;margin-top:12px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#cce5ff;line-height:1.5}
+.small{font-size:.9rem;color:#aab8ca}
+.ok{color:#78e0a5}.warn{color:#ffd27a}
+</style>
+</head>
+<body>
+<h1>T360 · Analisador XBLA</h1>
+<p class="sub">Análise local de cabeçalho de pacote Xbox 360. O arquivo é lido somente pelo navegador: não é enviado ao GitHub nem a qualquer servidor.</p>
+<section class="panel">
+<label for="file"><strong>Selecione a cópia do arquivo XBLA (33,31 MB)</strong></label><br><br>
+<input id="file" type="file">
+<br><button id="analyze" type="button">Analisar cabeçalho</button>
+<p class="small">A ferramenta lê somente os primeiros 64 KiB. Não extrai, altera ou grava o pacote.</p>
+</section>
+<section class="panel" aria-live="polite">
+<strong>Resultado</strong>
+<pre id="out">Aguardando seleção do arquivo.</pre>
+</section>
+<script>
+const $=id=>document.getElementById(id);
+const u32=(v,o)=>v.getUint32(o,false);
+function ascii(b,start,len){let s='';for(let i=start;i<Math.min(start+len,b.length);i++){const c=b[i];if(c===0)break;s+=c>=32&&c<127?String.fromCharCode(c):'.'}return s.trim()}
+function utf16be(b,start,units){let s='';for(let i=0;i<units;i++){const p=start+i*2;if(p+1>=b.length)break;const n=(b[p]<<8)|b[p+1];if(!n)break;s+=String.fromCharCode(n)}return s.trim()}
+function hex(n){return '0x'+n.toString(16).toUpperCase().padStart(8,'0')}
+$('analyze').addEventListener('click',async()=>{
+ const f=$('file').files[0];if(!f){$('out').textContent='Selecione o arquivo primeiro.';return}
+ $('out').textContent='Lendo cabeçalho...';
+ try{
+  const buf=await f.slice(0,0x10000).arrayBuffer(),b=new Uint8Array(buf),v=new DataView(buf);
+  if(b.length<4)throw new Error('Arquivo pequeno demais para identificar.');
+  const magic=ascii(b,0,4),known=['LIVE','PIRS','CON '].includes(magic);
+  let lines=[
+   'Arquivo: '+f.name,
+   'Tamanho: '+f.size.toLocaleString('pt-BR')+' bytes ('+(f.size/1048576).toFixed(2)+' MiB)',
+   'Assinatura inicial: '+JSON.stringify(magic),
+   'STFS/XContent reconhecido: '+(known?'SIM':'NÃO CONFIRMADO')
+  ];
+  if(known&&b.length>=0x3AD){
+   const content=u32(v,0x344),meta=u32(v,0x348),volume=u32(v,0x3A9);
+   const titleId=u32(v,0x360);
+   const names={851968:'Title Update (0x000D0000)',65536:'Perfil',1:'Save Game',4096:'Xbox 360 Title',32768:'Games on Demand'};
+   lines.push(
+    'Content Type: '+hex(content)+' — '+(names[content]||'tipo não mapeado'),
+    'Metadata version: '+u32(v,0x348),
+    'Title ID: '+hex(titleId),
+    'Volume type: '+volume+' — '+(volume===0?'STFS':volume===1?'SVOD':'desconhecido'),
+    'Data file count: '+u32(v,0x39D),
+    'Nome do título (metadados): '+(b.length>0x1691?utf16be(b,0x1691,64):'(não disponível na leitura)')
+   );
+   if(f.size<0x971A)lines.push('Aviso: menor que o tamanho típico mínimo de cabeçalho STFS (0x971A).');
+   lines.push('Próxima etapa: interpretar o sistema de arquivos conforme o volume type; esta ferramenta ainda não extrai arquivos.');
+  }else{
+   lines.push('O início não corresponde a LIVE, PIRS ou CON. Não conclua que o arquivo está inválido: pode usar outro contêiner ou ter uma camada adicional.');
+   lines.push('Primeiros 32 bytes: '+Array.from(b.slice(0,32)).map(x=>x.toString(16).padStart(2,'0')).join(' '));
+  }
+  $('out').textContent=lines.join('\n');
+ }catch(e){$('out').textContent='Falha ao ler o arquivo: '+e.message}
+});
+</script>
+</body></html>
