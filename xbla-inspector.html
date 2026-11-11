@@ -68,7 +68,7 @@ $('analyze').addEventListener('click',async()=>{
     'Nome do título (metadados): '+(b.length>0x1691?utf16be(b,0x1691,64):'(não disponível na leitura)')
    );
    if(f.size<0x971A)lines.push('Aviso: menor que o tamanho típico mínimo de cabeçalho STFS (0x971A).');
-   lines.push('Nota: 0x000D0000 não foi classificado aqui como Title Update; o tipo 0x000B0000 é usado por pacotes TU em referências técnicas.'););
+   lines.push('Nota: 0x000D0000 não foi classificado aqui como Title Update; o tipo 0x000B0000 é usado por pacotes TU em referências técnicas.');
   }else{
    lines.push('O início não corresponde a LIVE, PIRS ou CON. Não conclua que o arquivo está inválido: pode usar outro contêiner ou ter uma camada adicional.');
    lines.push('Primeiros 32 bytes: '+Array.from(b.slice(0,32)).map(x=>x.toString(16).padStart(2,'0')).join(' '));
