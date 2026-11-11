@@ -114,7 +114,7 @@ $('list').addEventListener('click',async()=>{
    }
    const pos=dataStart+hashBlock*0x1000+(index%170)*0x18+0x14;
    if(pos+4>f.size)throw new Error('Tabela hash fora do arquivo no bloco '+index+'.');
-   const v=new DataView(bufferForHash);
+   const v=new DataView(bufferForHash.buffer,bufferForHash.byteOffset,bufferForHash.byteLength);
    return v.getUint32(pos-bufferForHashStart,true)&0xFFFFFF;
   };
   let bufferForHash,bufferForHashStart=0;
