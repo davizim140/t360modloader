@@ -1,0 +1,56 @@
+name: Terraria XEX static analysis
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extract-game-exe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout T360 ModLoader
+        uses: actions/checkout@v4
+
+      - name: Verify input copy
+        shell: bash
+        run: |
+          test -s research/input/game.exe.xex || {
+            echo "Missing research/input/game.exe.xex"
+            echo "Upload a COPY of the extracted Terraria game.exe.xex to this path."
+            exit 1
+          }
+          sha256sum research/input/game.exe.xex
+
+      - name: Checkout XexTool-RE
+        uses: actions/checkout@v4
+        with:
+          repository: mrtitanic777/XexTool-RE
+          ref: main
+          path: tools/XexTool-RE
+
+      - name: Build XexTool-RE CLI
+        run: make -C tools/XexTool-RE cli
+
+      - name: Inspect and extract basefile
+        shell: bash
+        run: |
+          mkdir -p research/output
+          TOOL="$GITHUB_WORKSPACE/tools/XexTool-RE/xextool-re"
+          INPUT="$GITHUB_WORKSPACE/research/input/game.exe.xex"
+          "$TOOL" info "$INPUT" 2>&1 | tee research/output/info.txt
+          "$TOOL" list "$INPUT" 2>&1 | tee research/output/list.txt
+          "$TOOL" extract "$INPUT" "$GITHUB_WORKSPACE/research/output/game.exe.basefile" 2>&1 | tee research/output/extract.txt
+          file research/output/game.exe.basefile | tee research/output/file-type.txt
+          sha256sum research/output/game.exe.basefile | tee research/output/sha256.txt
+          test "$(head -c 2 research/output/game.exe.basefile)" = "MZ"
+
+      - name: Upload analysis results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraria-game-exe-analysis
+          path: research/output/
+          if-no-files-found: warn
+          retention-days: 7
