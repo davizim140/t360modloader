@@ -2,6 +2,10 @@ name: Terraria XEX static analysis
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'research/input/game.exe.xex'
+      - '.github/workflows/terraria-xex-analysis.yml'
 
 permissions:
   contents: read
