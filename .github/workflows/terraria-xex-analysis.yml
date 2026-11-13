@@ -94,7 +94,7 @@ jobs:
                       raise ValueError("truncated DOS header")
                   pe_rel = u32(data, pos + 0x3c)
                   pe = pos + pe_rel
-                  if pe + 24 > len(data) or data[pe:pe+4] != b"PE\\0\\0":
+                  if pe + 24 > len(data) or data[pe:pe+4] != b"PE\0\0":
                       raise ValueError("invalid PE signature")
                   machine = u16(data, pe + 4)
                   section_count = u16(data, pe + 6)
@@ -117,7 +117,7 @@ jobs:
                       s = section_table + i * 40
                       if s + 40 > len(data):
                           raise ValueError("truncated section table")
-                      name = data[s:s+8].split(b"\\0", 1)[0].decode("ascii", "replace")
+                      name = data[s:s+8].split(b"\0", 1)[0].decode("ascii", "replace")
                       virtual_size, virtual_address, raw_size, raw_pointer = struct.unpack_from("<IIII", data, s + 8)
                       if raw_pointer + raw_size > len(data) - pos:
                           raise ValueError(f"section {name} exceeds source file")
@@ -144,21 +144,21 @@ jobs:
           output.write_bytes(image)
           digest = hashlib.sha256(image).hexdigest()
           report = (
-              "Embedded managed assembly extraction: PASS\\n"
-              f"Source: {source}\\n"
-              f"Embedded PE offset: 0x{offset:x}\\n"
-              f"Machine: 0x{machine:04x} (x86)\\n"
-              f"CLR header RVA: 0x{clr_rva:x}\\n"
-              f"Metadata RVA: 0x{metadata_rva:x}\\n"
-              f"Metadata size: {metadata_size} bytes\\n"
-              "Metadata signature: BSJB\\n"
-              f"Output: {output}\\n"
-              f"Size: {len(image)} bytes\\n"
-              f"SHA-256: {digest}\\n"
+              "Embedded managed assembly extraction: PASS\n"
+              f"Source: {source}\n"
+              f"Embedded PE offset: 0x{offset:x}\n"
+              f"Machine: 0x{machine:04x} (x86)\n"
+              f"CLR header RVA: 0x{clr_rva:x}\n"
+              f"Metadata RVA: 0x{metadata_rva:x}\n"
+              f"Metadata size: {metadata_size} bytes\n"
+              "Metadata signature: BSJB\n"
+              f"Output: {output}\n"
+              f"Size: {len(image)} bytes\n"
+              f"SHA-256: {digest}\n"
           )
           Path("research/output/managed-assembly.txt").write_text(report, encoding="utf-8")
           Path("research/output/managed-assembly.sha256").write_text(
-              f"{digest}  {output}\\n", encoding="utf-8"
+              f"{digest}  {output}\n", encoding="utf-8"
           )
           print(report)
           PY
