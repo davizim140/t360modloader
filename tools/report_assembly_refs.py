@@ -44,7 +44,8 @@ def main():
         name = str(row.Name)
         culture = str(row.Culture) if getattr(row, "Culture", None) else ""
         token_bytes = blob_value(getattr(row, "PublicKeyOrToken", b""))
-        flags = int(getattr(row, "Flags", 0).value if hasattr(getattr(row, "Flags", 0), "value") else getattr(row, "Flags", 0))
+        flags_obj = getattr(row, "Flags", None)
+        flags = str(getattr(flags_obj, "value", flags_obj if flags_obj is not None else "0"))
         refs.append({
             "name": name,
             "version": f"{int(row.MajorVersion)}.{int(row.MinorVersion)}.{int(row.BuildNumber)}.{int(row.RevisionNumber)}",
@@ -75,7 +76,7 @@ def main():
     for ref in refs:
         lines.append(
             f"| `{ref['name']}` | `{ref['version']}` | {ref['culture']} | "
-            f"`{ref['public_key_or_token_hex'] or '(empty)'}` | `0x{ref['flags']:x}` |"
+            f"`{ref['public_key_or_token_hex'] or '(empty)'}` | `{ref['flags']}` |"
         )
     lines += ["", report["note"], ""]
     args.markdown.write_text("\n".join(lines), encoding="utf-8")
