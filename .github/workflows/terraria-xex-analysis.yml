@@ -41,8 +41,14 @@ jobs:
         shell: bash
         run: |
           mkdir -p research/output
-          TOOL="$GITHUB_WORKSPACE/tools/XexTool-RE/xextool-re"
+          TOOL="$GITHUB_WORKSPACE/tools/XexTool-RE/xextool-re.exe"
           INPUT="$GITHUB_WORKSPACE/research/input/game.exe.xex"
+          test -x "$TOOL" || {
+            echo "XexTool-RE CLI not found at: $TOOL"
+            echo "Contents of tools/XexTool-RE:"
+            ls -la tools/XexTool-RE
+            exit 1
+          }
           "$TOOL" info "$INPUT" 2>&1 | tee research/output/info.txt
           "$TOOL" list "$INPUT" 2>&1 | tee research/output/list.txt
           "$TOOL" extract "$INPUT" "$GITHUB_WORKSPACE/research/output/game.exe.basefile" 2>&1 | tee research/output/extract.txt
