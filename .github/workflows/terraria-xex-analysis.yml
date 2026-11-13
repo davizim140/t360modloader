@@ -151,13 +151,11 @@ jobs:
               f"CLR header RVA: 0x{clr_rva:x}\\n"
               f"Metadata RVA: 0x{metadata_rva:x}\\n"
               f"Metadata size: {metadata_size} bytes\\n"
-              f"Metadata signature: {data[map_rva(metadata_rva, [(n,vs,va,rs,rp) for n,vs,va,rs,rp in []], offset):map_rva(metadata_rva, [], offset)+4].hex()}\\n"
+              "Metadata signature: BSJB\\n"
               f"Output: {output}\\n"
               f"Size: {len(image)} bytes\\n"
               f"SHA-256: {digest}\\n"
           )
-          # The signature was checked above; keep the report independent of a second RVA mapping.
-          report = report.replace("Metadata signature: \\n", "Metadata signature: BSJB\\n")
           Path("research/output/managed-assembly.txt").write_text(report, encoding="utf-8")
           Path("research/output/managed-assembly.sha256").write_text(
               f"{digest}  {output}\\n", encoding="utf-8"
