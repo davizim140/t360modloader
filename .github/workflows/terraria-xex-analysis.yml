@@ -56,6 +56,117 @@ jobs:
           sha256sum research/output/game.exe.basefile | tee research/output/sha256.txt
           test "$(head -c 2 research/output/game.exe.basefile)" = "MZ"
 
+      - name: Extract embedded Terraria managed assembly
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import struct
+
+          source = Path("research/output/game.exe.basefile")
+          data = source.read_bytes()
+
+          def u16(buf, off):
+              return struct.unpack_from("<H", buf, off)[0]
+
+          def u32(buf, off):
+              return struct.unpack_from("<I", buf, off)[0]
+
+          def map_rva(rva, sections, image_start):
+              for name, virtual_size, virtual_address, raw_size, raw_pointer in sections:
+                  span = max(virtual_size, raw_size)
+                  if virtual_address <= rva < virtual_address + span:
+                      delta = rva - virtual_address
+                      if delta >= raw_size:
+                          raise ValueError(f"RVA 0x{rva:x} points outside raw section {name}")
+                      return image_start + raw_pointer + delta
+              raise ValueError(f"RVA 0x{rva:x} is not mapped by a section")
+
+          candidates = []
+          pos = 0
+          while True:
+              pos = data.find(b"MZ", pos)
+              if pos < 0:
+                  break
+              try:
+                  if pos + 0x40 > len(data):
+                      raise ValueError("truncated DOS header")
+                  pe_rel = u32(data, pos + 0x3c)
+                  pe = pos + pe_rel
+                  if pe + 24 > len(data) or data[pe:pe+4] != b"PE\\0\\0":
+                      raise ValueError("invalid PE signature")
+                  machine = u16(data, pe + 4)
+                  section_count = u16(data, pe + 6)
+                  optional_size = u16(data, pe + 20)
+                  optional = pe + 24
+                  if machine != 0x014c or u16(data, optional) != 0x010b:
+                      raise ValueError("not an x86 PE32 image")
+                  if optional + optional_size > len(data):
+                      raise ValueError("truncated optional header")
+                  directory_count = u32(data, optional + 92)
+                  if directory_count <= 14:
+                      raise ValueError("no CLR data directory")
+                  clr_rva, clr_size = struct.unpack_from("<II", data, optional + 96 + 14 * 8)
+                  if not clr_rva or clr_size < 0x48:
+                      raise ValueError("no valid CLR directory")
+                  section_table = optional + optional_size
+                  sections = []
+                  max_raw_end = u32(data, optional + 60)
+                  for i in range(section_count):
+                      s = section_table + i * 40
+                      if s + 40 > len(data):
+                          raise ValueError("truncated section table")
+                      name = data[s:s+8].split(b"\\0", 1)[0].decode("ascii", "replace")
+                      virtual_size, virtual_address, raw_size, raw_pointer = struct.unpack_from("<IIII", data, s + 8)
+                      if raw_pointer + raw_size > len(data) - pos:
+                          raise ValueError(f"section {name} exceeds source file")
+                      sections.append((name, virtual_size, virtual_address, raw_size, raw_pointer))
+                      max_raw_end = max(max_raw_end, raw_pointer + raw_size)
+                  clr_off = map_rva(clr_rva, sections, pos)
+                  metadata_rva, metadata_size = struct.unpack_from("<II", data, clr_off + 8)
+                  metadata_off = map_rva(metadata_rva, sections, pos)
+                  if data[metadata_off:metadata_off+4] != b"BSJB":
+                      raise ValueError("CLR metadata signature BSJB not found")
+                  if metadata_size <= 0 or metadata_off + metadata_size > len(data):
+                      raise ValueError("invalid CLR metadata size")
+                  image = data[pos:pos+max_raw_end]
+                  candidates.append((pos, image, machine, clr_rva, metadata_rva, metadata_size))
+              except (ValueError, struct.error):
+                  pass
+              pos += 2
+
+          if len(candidates) != 1:
+              raise SystemExit(f"Expected exactly one embedded managed x86 assembly; found {len(candidates)}")
+
+          offset, image, machine, clr_rva, metadata_rva, metadata_size = candidates[0]
+          output = Path("research/output/Terraria.Managed.dll")
+          output.write_bytes(image)
+          digest = hashlib.sha256(image).hexdigest()
+          report = (
+              "Embedded managed assembly extraction: PASS\\n"
+              f"Source: {source}\\n"
+              f"Embedded PE offset: 0x{offset:x}\\n"
+              f"Machine: 0x{machine:04x} (x86)\\n"
+              f"CLR header RVA: 0x{clr_rva:x}\\n"
+              f"Metadata RVA: 0x{metadata_rva:x}\\n"
+              f"Metadata size: {metadata_size} bytes\\n"
+              f"Metadata signature: {data[map_rva(metadata_rva, [(n,vs,va,rs,rp) for n,vs,va,rs,rp in []], offset):map_rva(metadata_rva, [], offset)+4].hex()}\\n"
+              f"Output: {output}\\n"
+              f"Size: {len(image)} bytes\\n"
+              f"SHA-256: {digest}\\n"
+          )
+          # The signature was checked above; keep the report independent of a second RVA mapping.
+          report = report.replace("Metadata signature: \\n", "Metadata signature: BSJB\\n")
+          Path("research/output/managed-assembly.txt").write_text(report, encoding="utf-8")
+          Path("research/output/managed-assembly.sha256").write_text(
+              f"{digest}  {output}\\n", encoding="utf-8"
+          )
+          print(report)
+          PY
+          file research/output/Terraria.Managed.dll | tee research/output/managed-file-type.txt
+          test "$(head -c 2 research/output/Terraria.Managed.dll)" = "MZ"
+
       - name: Upload analysis results
         if: always()
         uses: actions/upload-artifact@v4
