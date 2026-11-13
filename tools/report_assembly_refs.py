@@ -44,14 +44,11 @@ def main():
         name = str(row.Name)
         culture = str(row.Culture) if getattr(row, "Culture", None) else ""
         token_bytes = blob_value(getattr(row, "PublicKeyOrToken", b""))
-        flags_obj = getattr(row, "Flags", None)
-        flags = str(getattr(flags_obj, "value", flags_obj if flags_obj is not None else "0"))
         refs.append({
             "name": name,
             "version": f"{int(row.MajorVersion)}.{int(row.MinorVersion)}.{int(row.BuildNumber)}.{int(row.RevisionNumber)}",
             "culture": culture or "neutral",
             "public_key_or_token_hex": token_bytes.hex(),
-            "flags": flags,
         })
 
     report = {
@@ -59,7 +56,6 @@ def main():
         "sha256": hashlib.sha256(data).hexdigest(),
         "assembly_reference_count": len(refs),
         "assembly_references": refs,
-        "note": "PublicKeyOrToken is reported exactly as stored in AssemblyRef metadata; it may be a full public key when the AssemblyFlags PublicKey bit is set.",
     }
     args.json.parent.mkdir(parents=True, exist_ok=True)
     args.json.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -70,15 +66,15 @@ def main():
         f"- SHA-256: `{report['sha256']}`",
         f"- References found: **{len(refs)}**",
         "",
-        "| Assembly | Version | Culture | PublicKeyOrToken (hex) | Flags |",
-        "|---|---:|---|---|---:|",
+        "| Assembly | Version | Culture | PublicKeyOrToken (hex) |",
+        "|---|---:|---|---|",
     ]
     for ref in refs:
         lines.append(
             f"| `{ref['name']}` | `{ref['version']}` | {ref['culture']} | "
-            f"`{ref['public_key_or_token_hex'] or '(empty)'}` | `{ref['flags']}` |"
+            f"`{ref['public_key_or_token_hex'] or '(empty)'}` |"
         )
-    lines += ["", report["note"], ""]
+    lines.append("")
     args.markdown.write_text("\n".join(lines), encoding="utf-8")
 
     print(f"AssemblyRef metadata: PASS ({len(refs)} references)")
