@@ -165,6 +165,28 @@ jobs:
           file research/output/Terraria.Managed.dll | tee research/output/managed-file-type.txt
           test "$(head -c 2 research/output/Terraria.Managed.dll)" = "MZ"
 
+      - name: Set up .NET 10 for ILSpy
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install ILSpy command-line decompiler
+        run: dotnet tool install ilspycmd --tool-path tools/ilspy --version 11.1.0.9782
+
+      - name: List Terraria managed types
+        shell: bash
+        run: |
+          tools/ilspy/ilspycmd -l c research/output/Terraria.Managed.dll 2>&1 | tee research/output/managed-types.txt
+
+      - name: Decompile Terraria managed assembly
+        shell: bash
+        run: |
+          tools/ilspy/ilspycmd --disable-updatecheck -p --nested-directories -o research/output/decompiled research/output/Terraria.Managed.dll
+          find research/output/decompiled -type f | sort > research/output/decompiled-files.txt
+          printf "Decompiled files: " >> research/output/decompilation-summary.txt
+          find research/output/decompiled -type f -name '*.cs' | wc -l >> research/output/decompilation-summary.txt
+          du -sh research/output/decompiled >> research/output/decompilation-summary.txt
+
       - name: Upload analysis results
         if: always()
         uses: actions/upload-artifact@v4
