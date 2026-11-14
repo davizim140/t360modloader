@@ -9,6 +9,7 @@ on:
       - 'tools/report_assembly_refs.py'
       - 'tools/report_controller_bindings.py'
       - 'tools/report_menu_integration_points.py'
+      - 'tools/report_menu_render_context.py'
 
 permissions:
   contents: read
@@ -203,6 +204,13 @@ jobs:
           python3 tools/report_menu_integration_points.py research/output/decompiled \
             --json research/output/menu-integration-points.json \
             --markdown research/output/menu-integration-points.md
+
+      - name: Verify menu render context
+        shell: bash
+        run: |
+          python3 tools/report_menu_render_context.py research/output/decompiled \
+            --json research/output/menu-render-context.json \
+            --markdown research/output/menu-render-context.md
 
       - name: Inventory managed build references
         shell: bash
