@@ -10,6 +10,7 @@ on:
       - 'tools/report_controller_bindings.py'
       - 'tools/report_menu_integration_points.py'
       - 'tools/report_menu_render_context.py'
+      - 'tools/report_pause_menu_capacity.py'
 
 permissions:
   contents: read
@@ -211,6 +212,13 @@ jobs:
           python3 tools/report_menu_render_context.py research/output/decompiled \
             --json research/output/menu-render-context.json \
             --markdown research/output/menu-render-context.md
+
+      - name: Audit pause menu extension capacity
+        shell: bash
+        run: |
+          python3 tools/report_pause_menu_capacity.py research/output/decompiled \
+            --json research/output/pause-menu-capacity.json \
+            --markdown research/output/pause-menu-capacity.md
 
       - name: Inventory managed build references
         shell: bash
