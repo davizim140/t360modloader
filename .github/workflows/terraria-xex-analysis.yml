@@ -8,6 +8,7 @@ on:
       - '.github/workflows/terraria-xex-analysis.yml'
       - 'tools/report_assembly_refs.py'
       - 'tools/report_controller_bindings.py'
+      - 'tools/report_menu_integration_points.py'
 
 permissions:
   contents: read
@@ -195,6 +196,13 @@ jobs:
           python3 tools/report_controller_bindings.py research/output/decompiled \
             --json research/output/controller-bindings.json \
             --markdown research/output/controller-bindings.md
+
+      - name: Map Terraria menu integration points
+        shell: bash
+        run: |
+          python3 tools/report_menu_integration_points.py research/output/decompiled \
+            --json research/output/menu-integration-points.json \
+            --markdown research/output/menu-integration-points.md
 
       - name: Inventory managed build references
         shell: bash
