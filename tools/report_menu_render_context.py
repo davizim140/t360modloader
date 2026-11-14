@@ -73,7 +73,7 @@ def main():
     report = build(a.source_root)
     a.json.parent.mkdir(parents=True, exist_ok=True)
     a.markdown.parent.mkdir(parents=True, exist_ok=True)
-    a.json.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+    a.json.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     rows = ["# Terraria — validação estática do contexto de renderização", "",
             "## Janela candidata", "",
             f"- Arquivo: `{report['candidate_insertion']['file']}`",
@@ -88,7 +88,7 @@ def main():
     rows += [f"- L{x['line']}: `{x['text']}`" for x in report["ui_font_and_draw"]]
     rows += ["", "## Limitações", ""]
     rows += [f"- {x}" for x in report["limitations"]]
-    a.markdown.write_text("\\n".join(rows) + "\\n", encoding="utf-8")
+    a.markdown.write_text("\n".join(rows) + "\n", encoding="utf-8")
     print("Menu render context: PASS")
     print(f"Main.Draw anchors: {len(report['main_draw'])}; UI/font anchors: {len(report['ui_font_and_draw'])}")
 
