@@ -6,6 +6,7 @@ A análise automática percorreu **106 arquivos C#** decompilados e encontrou **
 
 | Valor | Constantes do próprio jogo | Ocorrências de casts |
 |---:|---|---:|
+| 0 | — | 1 |
 | 1 | — | 3 |
 | 2 | — | 3 |
 | 4 | — | 5 |
