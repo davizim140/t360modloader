@@ -26,6 +26,18 @@ A análise adicional identificou uma janela candidata mais segura para desenhar 
 
 Isto ainda não é um patch: a compatibilidade visual precisa ser validada em execução, e o caminho de compilação do assembly continua bloqueado pelas referências XNA/XDK ausentes.
 
+## Entrada do ModLoader sem conflito de botões
+
+A revisão de `UI.UpdateMenu()` confirmou que a pausa já possui uma lista navegável pelo controle. Portanto, não vamos reservar uma combinação de botões potencialmente conflitante.
+
+- `MENU_PAUSE_COORDS` possui 7 posições (índices 0–6).
+- Os arrays genéricos de texto/escala comportam 14 itens.
+- No jogo completo, a pausa usa índices 0–5; no trial, o índice 6 é usado pelo item de saída.
+- Logo, o índice 6 não é livre em todas as edições. A extensão compatível deve acrescentar uma oitava posição (índice 7) e preservar todos os itens originais.
+- A seleção do T360 deve abrir uma tela própria, navegável pelo mesmo sistema de foco/seleção já usado pelo Terraria. Não deve substituir a opção de sair nem alterar o fluxo de pausa original.
+
+Esta escolha evita criar um atalho de controle novo e reduz o risco de interferir com ações existentes.
+
 ## Próxima implementação, em ordem
 
 1. Confirmar o estado de início/fim do SpriteBatch e os estados gráficos usados por `DrawTopLayer()`; não inserir desenho até isso estar provado.
