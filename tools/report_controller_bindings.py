@@ -9,7 +9,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 CONSTANT_RE = re.compile(
-    r"\b(?:const\s+)?Buttons\s+(\w+)\s*=\s*\(Buttons\)\s*(\d+)\b"
+    r"(?m)^\s*(?:public|private|protected|internal)\s+(?:(?:static|const|readonly)\s+)*Buttons\s+(\w+)\s*=\s*\(Buttons\)\s*(\d+)\b"
 )
 CAST_RE = re.compile(r"\(Buttons\)\s*(\d+)\b")
 
