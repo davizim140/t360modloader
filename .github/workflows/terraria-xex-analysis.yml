@@ -7,6 +7,7 @@ on:
       - 'research/input/game.exe.xex'
       - '.github/workflows/terraria-xex-analysis.yml'
       - 'tools/report_assembly_refs.py'
+      - 'tools/report_controller_bindings.py'
 
 permissions:
   contents: read
@@ -187,6 +188,13 @@ jobs:
           printf "Decompiled files: " >> research/output/decompilation-summary.txt
           find research/output/decompiled -type f -name '*.cs' | wc -l >> research/output/decompilation-summary.txt
           du -sh research/output/decompiled >> research/output/decompilation-summary.txt
+
+      - name: Inventory Terraria controller bindings
+        shell: bash
+        run: |
+          python3 tools/report_controller_bindings.py research/output/decompiled \
+            --json research/output/controller-bindings.json \
+            --markdown research/output/controller-bindings.md
 
       - name: Inventory managed build references
         shell: bash
