@@ -11,6 +11,7 @@ on:
       - 'tools/report_menu_integration_points.py'
       - 'tools/report_menu_render_context.py'
       - 'tools/report_pause_menu_capacity.py'
+      - 'tools/report_ui_raw_il.py'
 
 permissions:
   contents: read
@@ -219,6 +220,16 @@ jobs:
           python3 tools/report_pause_menu_capacity.py research/output/decompiled \
             --json research/output/pause-menu-capacity.json \
             --markdown research/output/pause-menu-capacity.md
+
+      - name: Capture raw IL for Terraria.UI
+        shell: bash
+        run: |
+          tools/ilspy/ilspycmd --ilcode --type Terraria.UI research/output/Terraria.Managed.dll \
+            > research/output/Terraria-UI.il
+          test -s research/output/Terraria-UI.il
+          python3 tools/report_ui_raw_il.py research/output/Terraria-UI.il \
+            --json research/output/ui-raw-il.json \
+            --markdown research/output/ui-raw-il.md
 
       - name: Inventory managed build references
         shell: bash
