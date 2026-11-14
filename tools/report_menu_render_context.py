@@ -5,56 +5,54 @@ import argparse
 import json
 from pathlib import Path
 
-def require(path: Path, anchors: list[str]) -> list[dict]:
+def read_lines(path: Path) -> list[str]:
     if not path.is_file():
         raise FileNotFoundError(path)
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    hits = []
-    for anchor in anchors:
-        found = [i for i, line in enumerate(lines) if anchor in line]
-        if not found:
-            raise ValueError(f"{path}: required anchor not found: {anchor}")
-        hits.extend({"anchor": anchor, "line": i + 1, "text": lines[i].strip()} for i in found)
-    return hits
+    return path.read_text(encoding="utf-8", errors="replace").splitlines()
+
+def find_line(lines: list[str], anchor: str, start: int = 0) -> int:
+    for i in range(start, len(lines)):
+        if anchor in lines[i]:
+            return i + 1
+    raise ValueError(f"Required anchor not found after line {start + 1}: {anchor}")
 
 def build(root: Path) -> dict:
-    main = root / "Terraria/Main.cs"
-    ui = root / "Terraria/UI.cs"
-    main_hits = require(main, [
-        "protected override void Draw(GameTime dt)",
-        "ui[j].Draw();",
-        "spriteBatch.Begin();",
-        "DrawChat();",
-        "spriteBatch.End();",
-    ])
-    ui_hits = require(ui, [
-        "public void Draw()",
-        "Main.spriteBatch.End();",
-        "public static SpriteFont fontSmallOutline;",
-        'fontSmallOutline = Content.Load<SpriteFont>("Fonts/small2");',
-    ])
-    def line(hits, anchor):
-        return next(x["line"] for x in hits if x["anchor"] == anchor)
-    begin, chat, end = (line(main_hits, a) for a in ("spriteBatch.Begin();", "DrawChat();", "spriteBatch.End();"))
-    if not begin < chat < end:
-        raise ValueError("Main.Draw SpriteBatch Begin/DrawChat/End ordering changed")
-    if line(main_hits, "ui[j].Draw();") >= begin:
-        raise ValueError("UI.Draw must finish before the dedicated Main.Draw SpriteBatch begins")
+    main_lines = read_lines(root / "Terraria/Main.cs")
+    ui_lines = read_lines(root / "Terraria/UI.cs")
+    draw_start = find_line(main_lines, "protected override void Draw(GameTime dt)")
+    ui_draw = find_line(main_lines, "ui[j].Draw();", draw_start)
+    begin = find_line(main_lines, "spriteBatch.Begin();", ui_draw)
+    chat = find_line(main_lines, "DrawChat();", begin)
+    save_icon = find_line(main_lines, "SpriteSheet<_sheetSprites>.Draw(642, 878, 479", chat)
+    end = find_line(main_lines, "spriteBatch.End();", save_icon)
+
+    ui_draw_start = find_line(ui_lines, "public void Draw()")
+    ui_draw_end = find_line(ui_lines, "Main.spriteBatch.End();", ui_draw_start)
+    font_field = find_line(ui_lines, "public static SpriteFont fontSmallOutline;")
+    font_load = find_line(ui_lines, 'fontSmallOutline = Content.Load<SpriteFont>("Fonts/small2");')
+    if not (ui_draw_start < ui_draw_end):
+        raise ValueError("UI.Draw no longer closes its SpriteBatch")
+    if not (ui_draw < begin < chat < save_icon < end):
+        raise ValueError("Main.Draw SpriteBatch insertion window changed")
     return {
-        "main_draw": main_hits,
-        "ui_font_and_draw": ui_hits,
         "verified": [
-            "Main.Draw calls UI.Draw before opening a separate SpriteBatch.",
-            "Main.Draw has a verified active SpriteBatch window: Begin -> DrawChat -> End.",
-            "UI.fontSmallOutline exists and is loaded from the game's existing Fonts/small2 content asset.",
-            "A T360 overlay can be investigated inside Main.Draw's active batch without adding a new XNA assembly reference.",
+            f"Main.Draw calls UI.Draw at line {ui_draw} before opening its own SpriteBatch at line {begin}.",
+            f"Main.Draw's active batch remains open through DrawChat (line {chat}) and save-icon drawing (line {save_icon}), then closes at line {end}.",
+            f"UI.Draw closes its prior batch at line {ui_draw_end}.",
+            f"UI.fontSmallOutline is declared at line {font_field} and loaded from Fonts/small2 at line {font_load}.",
         ],
         "candidate_insertion": {
             "file": "Terraria/Main.cs",
             "method": "protected override void Draw(GameTime dt)",
-            "after_line": begin,
+            "after_line": save_icon,
             "before_line": end,
-            "constraint": "The final patch must preserve the original Begin/End pairing and must not call Begin/End from inside the inserted overlay.",
+            "constraint": "Insert drawing before the final End; do not call Begin or End inside the overlay.",
+        },
+        "anchors": {
+            "main_draw_start": draw_start, "ui_draw": ui_draw, "spritebatch_begin": begin,
+            "draw_chat": chat, "save_icon": save_icon, "spritebatch_end": end,
+            "ui_draw_start": ui_draw_start, "ui_draw_end": ui_draw_end,
+            "font_field": font_field, "font_load": font_load,
         },
         "limitations": [
             "Static decompilation evidence only; it does not validate GPU state or on-console rendering.",
@@ -73,7 +71,7 @@ def main():
     report = build(a.source_root)
     a.json.parent.mkdir(parents=True, exist_ok=True)
     a.markdown.parent.mkdir(parents=True, exist_ok=True)
-    a.json.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    a.json.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
     rows = ["# Terraria — validação estática do contexto de renderização", "",
             "## Janela candidata", "",
             f"- Arquivo: `{report['candidate_insertion']['file']}`",
@@ -82,15 +80,13 @@ def main():
             f"- Restrição: {report['candidate_insertion']['constraint']}", "",
             "## Fatos verificados", ""]
     rows += [f"- {x}" for x in report["verified"]]
-    rows += ["", "## Âncoras de Main.Draw", ""]
-    rows += [f"- L{x['line']}: `{x['text']}`" for x in report["main_draw"]]
-    rows += ["", "## Âncoras de UI/fontes", ""]
-    rows += [f"- L{x['line']}: `{x['text']}`" for x in report["ui_font_and_draw"]]
+    rows += ["", "## Âncoras", ""]
+    rows += [f"- {name}: linha {number}" for name, number in report["anchors"].items()]
     rows += ["", "## Limitações", ""]
     rows += [f"- {x}" for x in report["limitations"]]
-    a.markdown.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    a.markdown.write_text("\\n".join(rows) + "\\n", encoding="utf-8")
     print("Menu render context: PASS")
-    print(f"Main.Draw anchors: {len(report['main_draw'])}; UI/font anchors: {len(report['ui_font_and_draw'])}")
+    print(f"Verified anchors: {len(report['anchors'])}")
 
 if __name__ == "__main__":
     main()
