@@ -71,7 +71,7 @@ def main():
     report = build(a.source_root)
     a.json.parent.mkdir(parents=True, exist_ok=True)
     a.markdown.parent.mkdir(parents=True, exist_ok=True)
-    a.json.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+    a.json.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     rows = ["# Terraria — validação estática do contexto de renderização", "",
             "## Janela candidata", "",
             f"- Arquivo: `{report['candidate_insertion']['file']}`",
@@ -84,7 +84,7 @@ def main():
     rows += [f"- {name}: linha {number}" for name, number in report["anchors"].items()]
     rows += ["", "## Limitações", ""]
     rows += [f"- {x}" for x in report["limitations"]]
-    a.markdown.write_text("\\n".join(rows) + "\\n", encoding="utf-8")
+    a.markdown.write_text("\n".join(rows) + "\n", encoding="utf-8")
     print("Menu render context: PASS")
     print(f"Verified anchors: {len(report['anchors'])}")
 
