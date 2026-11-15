@@ -113,19 +113,6 @@ static object AssemblyFingerprint(AssemblyDefinition assembly)
     };
 }
 
-sealed class TargetedAssemblyResolver : DefaultAssemblyResolver
-{
-    private readonly AssemblyDefinition stub;
-
-    public TargetedAssemblyResolver(AssemblyDefinition stub) => this.stub = stub;
-
-    public override AssemblyDefinition Resolve(AssemblyNameReference name)
-        => name.Name == "Microsoft.Xna.Framework.Net" ? stub : base.Resolve(name);
-
-    public override AssemblyDefinition Resolve(AssemblyNameReference name, ReaderParameters parameters)
-        => name.Name == "Microsoft.Xna.Framework.Net" ? stub : base.Resolve(name, parameters);
-}
-
 static AssemblyDefinition CreateMetadataOnlyXnaNetStub()
 {
     var name = new AssemblyNameDefinition("Microsoft.Xna.Framework.Net", new Version(4, 0, 0, 0))
@@ -206,3 +193,17 @@ Console.WriteLine("Original SHA-256 unchanged: " + report.sourceFileUnchanged);
 Console.WriteLine("Metadata/IL/resource fingerprint preserved: " + report.metadataAndIlFingerprintPreserved);
 Console.WriteLine("Original file was never overwritten.");
 return report.status == "roundtrip-pass" ? 0 : 1;
+
+sealed class TargetedAssemblyResolver : DefaultAssemblyResolver
+{
+    private readonly AssemblyDefinition stub;
+
+    public TargetedAssemblyResolver(AssemblyDefinition stub) => this.stub = stub;
+
+    public override AssemblyDefinition Resolve(AssemblyNameReference name)
+        => name.Name == "Microsoft.Xna.Framework.Net" ? stub : base.Resolve(name);
+
+    public override AssemblyDefinition Resolve(AssemblyNameReference name, ReaderParameters parameters)
+        => name.Name == "Microsoft.Xna.Framework.Net" ? stub : base.Resolve(name, parameters);
+}
+
