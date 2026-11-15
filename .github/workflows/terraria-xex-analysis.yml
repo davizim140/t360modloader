@@ -16,6 +16,7 @@ on:
       - 'tools/managed-assembly-inventory/**'
       - 'tools/managed-roundtrip/**'
       - 'tools/managed-maxstack-audit/**'
+      - 'tools/pause-menu-target-audit/**'
 
 permissions:
   contents: read
@@ -203,6 +204,15 @@ jobs:
           dotnet run --project tools/managed-maxstack-audit/ManagedMaxStackAudit.csproj --             research/output/Terraria.Managed.roundtrip.dll
           test -s research/output/Terraria.Managed.roundtrip.dll.maxstack-audit.json
           jq -e '.status == "maxstack-audit-pass" and .failureCount == 0 and .methodsAnalyzed > 0'             research/output/Terraria.Managed.roundtrip.dll.maxstack-audit.json
+
+      - name: Inventory exact pause-menu patch targets
+        shell: bash
+        run: |
+          dotnet run --project tools/pause-menu-target-audit/PauseMenuTargetAudit.csproj -- \
+            research/output/Terraria.Managed.roundtrip.dll \
+            research/output/pause-menu-targets.json
+          test -s research/output/pause-menu-targets.json
+          jq -e '.status == "pause-menu-targets-found"' research/output/pause-menu-targets.json
 
       - name: Install ILSpy command-line decompiler
         run: dotnet tool install ilspycmd --tool-path tools/ilspy --version 11.1.0.9782
