@@ -113,6 +113,44 @@ static object AssemblyFingerprint(AssemblyDefinition assembly)
     };
 }
 
+sealed class TargetedAssemblyResolver : DefaultAssemblyResolver
+{
+    private readonly AssemblyDefinition stub;
+
+    public TargetedAssemblyResolver(AssemblyDefinition stub) => this.stub = stub;
+
+    public override AssemblyDefinition Resolve(AssemblyNameReference name)
+        => name.Name == "Microsoft.Xna.Framework.Net" ? stub : base.Resolve(name);
+
+    public override AssemblyDefinition Resolve(AssemblyNameReference name, ReaderParameters parameters)
+        => name.Name == "Microsoft.Xna.Framework.Net" ? stub : base.Resolve(name, parameters);
+}
+
+static AssemblyDefinition CreateMetadataOnlyXnaNetStub()
+{
+    var name = new AssemblyNameDefinition("Microsoft.Xna.Framework.Net", new Version(4, 0, 0, 0))
+    {
+        PublicKeyToken = Convert.FromHexString("842cf8be1de50553")
+    };
+    var stub = AssemblyDefinition.CreateAssembly(name, name.Name, ModuleKind.Dll);
+    var module = stub.MainModule;
+    var core = new AssemblyNameReference("mscorlib", new Version(2, 0, 5, 0))
+    {
+        PublicKeyToken = Convert.FromHexString("7cec85d7bea7798e")
+    };
+    var enumType = new TypeDefinition(
+        "Microsoft.Xna.Framework.Net",
+        "SendDataOptions",
+        TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.AnsiClass | TypeAttributes.BeforeFieldInit,
+        new TypeReference("System", "Enum", module, core));
+    enumType.Fields.Add(new FieldDefinition(
+        "value__",
+        FieldAttributes.Public | FieldAttributes.SpecialName | FieldAttributes.RTSpecialName,
+        module.TypeSystem.Int32));
+    module.Types.Add(enumType);
+    return stub;
+}
+
 if (args.Length != 2)
 {
     Console.Error.WriteLine("Usage: ManagedRoundTrip <input.dll> <separate-output.dll>");
