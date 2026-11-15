@@ -186,8 +186,7 @@ jobs:
             research/output/Terraria.Managed.dll \
             --output research/output/managed-cecil-inventory.json
 
-      - name: Diagnostic separate-copy round-trip (external metadata still under audit)
-        continue-on-error: true
+      - name: Verify real Terraria separate-copy round-trip
         shell: bash
         run: |
           dotnet run --project tools/managed-roundtrip/ManagedRoundTrip.csproj -- \
@@ -195,6 +194,7 @@ jobs:
             research/output/Terraria.Managed.roundtrip.dll
           test -s research/output/Terraria.Managed.roundtrip.dll
           test -s research/output/Terraria.Managed.roundtrip.dll.report.json
+          jq -e '.status == "roundtrip-pass-maxstack-normalized" and .sourceFileUnchanged == true and .ilMetadataAndResourcesPreservedExceptMaxStack == true and .maxStackChangesOnlyReduced == true' research/output/Terraria.Managed.roundtrip.dll.report.json
 
       - name: Install ILSpy command-line decompiler
         run: dotnet tool install ilspycmd --tool-path tools/ilspy --version 11.1.0.9782
