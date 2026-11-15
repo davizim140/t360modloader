@@ -104,6 +104,18 @@ var externalConstants = allTypes.SelectMany(type => type.Methods)
     .Where(parameter => parameter.hasConstant && parameter.scope.Length > 0)
     .ToArray();
 
+var externalFieldConstants = allTypes.SelectMany(type => type.Fields.Select(field => new
+{
+    owner = type.FullName,
+    name = field.Name,
+    type = field.FieldType.FullName,
+    scope = field.FieldType.Scope?.Name ?? "",
+    hasConstant = field.HasConstant,
+    constant = field.HasConstant ? Convert.ToString(field.Constant, System.Globalization.CultureInfo.InvariantCulture) : null
+}))
+.Where(field => field.hasConstant && field.scope.Length > 0)
+.ToArray();
+
 var report = new
 {
     status = "read-only-cecil-inventory",
@@ -121,6 +133,7 @@ var report = new
     assemblyReferences = module.AssemblyReferences.Select(reference => reference.FullName).ToArray(),
     watchedMethods,
     externalParameterConstants = externalConstants,
+    externalFieldConstants,
     invalidMethodBodies = invalidBodies,
     sourceWasOpenedReadOnly = true,
     assemblyWasWritten = false
