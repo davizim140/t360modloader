@@ -4,11 +4,13 @@ import argparse, json, re
 from pathlib import Path
 
 def method_body(il, name):
-    start = re.search(r"\.method\b(?:(?!\.method\b).)*?\binstance void " + re.escape(name) + r"\s*\(\)", il, re.S)
-    if not start: raise ValueError("method " + name + " not found")
-    end = il.find("} // end of method UI::" + name, start.start())
+    needle = re.search(r"\\b" + re.escape(name) + r"\\s*\\(", il)
+    if not needle: raise ValueError("method " + name + " not found")
+    start = il.rfind(".method", 0, needle.start())
+    if start < 0: raise ValueError("method declaration for " + name + " not found")
+    end = il.find("} // end of method UI::" + name, needle.end())
     if end < 0: raise ValueError("method end for " + name + " not found")
-    return il[start.start():end]
+    return il[start:end]
 
 def main():
     p=argparse.ArgumentParser()
