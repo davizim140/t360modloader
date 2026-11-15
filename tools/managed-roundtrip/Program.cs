@@ -113,28 +113,32 @@ static object AssemblyFingerprint(AssemblyDefinition assembly)
     };
 }
 
-static AssemblyDefinition CreateMetadataOnlyXnaNetStub()
+static TypeDefinition CreateEnumStub(ModuleDefinition module, string ns, string name)
 {
-    var name = new AssemblyNameDefinition("Microsoft.Xna.Framework.Net", new Version(4, 0, 0, 0))
-    {
-        PublicKeyToken = Convert.FromHexString("842cf8be1de50553")
-    };
-    var stub = AssemblyDefinition.CreateAssembly(name, name.Name, ModuleKind.Dll);
-    var module = stub.MainModule;
     var core = new AssemblyNameReference("mscorlib", new Version(2, 0, 5, 0))
     {
         PublicKeyToken = Convert.FromHexString("7cec85d7bea7798e")
     };
     var enumType = new TypeDefinition(
-        "Microsoft.Xna.Framework.Net",
-        "SendDataOptions",
+        ns,
+        name,
         TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.AnsiClass | TypeAttributes.BeforeFieldInit,
         new TypeReference("System", "Enum", module, core));
     enumType.Fields.Add(new FieldDefinition(
         "value__",
         FieldAttributes.Public | FieldAttributes.SpecialName | FieldAttributes.RTSpecialName,
         module.TypeSystem.Int32));
-    module.Types.Add(enumType);
+    return enumType;
+}
+
+static AssemblyDefinition CreateMetadataOnlyStub(string assemblyName, string enumNamespace, string enumName)
+{
+    var name = new AssemblyNameDefinition(assemblyName, new Version(4, 0, 0, 0))
+    {
+        PublicKeyToken = Convert.FromHexString("842cf8be1de50553")
+    };
+    var stub = AssemblyDefinition.CreateAssembly(name, name.Name, ModuleKind.Dll);
+    stub.MainModule.Types.Add(CreateEnumStub(stub.MainModule, enumNamespace, enumName));
     return stub;
 }
 
@@ -151,8 +155,13 @@ if (Path.GetFullPath(input) == output) throw new InvalidOperationException("Outp
 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 
 var inputHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(input))).ToLowerInvariant();
-using var xnaNetStub = CreateMetadataOnlyXnaNetStub();
-using var resolver = new TargetedAssemblyResolver(xnaNetStub);
+using var xnaNetStub = CreateMetadataOnlyStub("Microsoft.Xna.Framework.Net", "Microsoft.Xna.Framework.Net", "SendDataOptions");
+using var xnaCoreStub = CreateMetadataOnlyStub("Microsoft.Xna.Framework", "Microsoft.Xna.Framework.Input", "Buttons");
+using var resolver = new TargetedAssemblyResolver(new Dictionary<string, AssemblyDefinition>
+{
+    ["Microsoft.Xna.Framework.Net"] = xnaNetStub,
+    ["Microsoft.Xna.Framework"] = xnaCoreStub
+});
 var reader = new ReaderParameters { InMemory = true, ReadSymbols = false, ReadingMode = ReadingMode.Immediate, AssemblyResolver = resolver };
 
 object before;
@@ -196,14 +205,13 @@ return report.status == "roundtrip-pass" ? 0 : 1;
 
 sealed class TargetedAssemblyResolver : DefaultAssemblyResolver
 {
-    private readonly AssemblyDefinition stub;
+    private readonly IReadOnlyDictionary<string, AssemblyDefinition> stubs;
 
-    public TargetedAssemblyResolver(AssemblyDefinition stub) => this.stub = stub;
+    public TargetedAssemblyResolver(IReadOnlyDictionary<string, AssemblyDefinition> stubs) => this.stubs = stubs;
 
     public override AssemblyDefinition Resolve(AssemblyNameReference name)
-        => name.Name == "Microsoft.Xna.Framework.Net" ? stub : base.Resolve(name);
+        => stubs.TryGetValue(name.Name, out var stub) ? stub : base.Resolve(name);
 
     public override AssemblyDefinition Resolve(AssemblyNameReference name, ReaderParameters parameters)
-        => name.Name == "Microsoft.Xna.Framework.Net" ? stub : base.Resolve(name, parameters);
+        => stubs.TryGetValue(name.Name, out var stub) ? stub : base.Resolve(name, parameters);
 }
-
