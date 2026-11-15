@@ -13,6 +13,7 @@ on:
       - 'tools/report_pause_menu_capacity.py'
       - 'tools/report_ui_raw_il.py'
       - 'tools/audit_pause_menu_il.py'
+      - 'tools/managed-assembly-inventory/**'
 
 permissions:
   contents: read
@@ -176,6 +177,13 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+
+      - name: Read-only Mono.Cecil inventory of Terraria assembly
+        shell: bash
+        run: |
+          dotnet run --project tools/managed-assembly-inventory/ManagedAssemblyInventory.csproj -- \
+            research/output/Terraria.Managed.dll \
+            --output research/output/managed-cecil-inventory.json
 
       - name: Install ILSpy command-line decompiler
         run: dotnet tool install ilspycmd --tool-path tools/ilspy --version 11.1.0.9782
