@@ -1,6 +1,6 @@
 # Pause menu IL patch plan
 
-Status: static analysis only. No assembly has been modified.
+Status: static analysis and patcher validation. No Terraria assembly has been modified.
 
 ## Verified from Terraria.UI raw IL
 
@@ -15,6 +15,13 @@ Status: static analysis only. No assembly has been modified.
 - `UI::UpdateMouse()` uses `uiHeight` for vertical navigation/wrap and indexes `uiCoords` to position the cursor. Extending the menu therefore requires both an eight-entry coordinate array and pause `uiHeight = 8`.
 - `UI::DrawMenu()` loops to `numMenuItems` and reads `menuString`; increasing the item count makes the new item participate in the existing draw loop.
 - The candidate Y coordinate 497 is only a geometric estimate. It has not been checked in runtime rendering.
+
+## Managed assembly writer gate
+
+- Mono.Cecil 0.11.6 synthetic branch/exception-region round-trip test passed on GitHub Actions.
+- Read-only Mono.Cecil inventory of the extracted Terraria assembly passed: 168 types, 1,367 methods, 1,338 method bodies, and zero invalid branch/EH targets.
+- The real Terraria assembly is now being tested with a separate-copy round-trip writer. This must preserve a fingerprint of types, fields, methods, IL instructions, branch targets, exception regions, resources, and assembly references while leaving the input SHA-256 unchanged.
+- The round-trip result is not yet verified; do not begin patching until this gate passes.
 
 ## Required patch surface
 
