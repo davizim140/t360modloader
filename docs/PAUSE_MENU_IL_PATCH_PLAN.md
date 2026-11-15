@@ -6,9 +6,9 @@ Status: static analysis only. No assembly has been modified.
 
 - `UI::UpdateMenu()` handles pause mode (`menuMode == 1`).
 - It sets the first pause item at index 0 (Resume).
-- Full game: `numMenuItems = 6`; the remaining entries are Options, Leaderboards, Achievements, Save, Exit (indices 1–5).
-- Trial: `numMenuItems = 7`; Marketplace is inserted at index 1, shifting Options, Leaderboards, Achievements, Save, Exit to indices 2–6.
-- Therefore an appended T360 entry must be index 6 in full game and index 7 in Trial. Existing actions must remain unchanged.
+- Full game: `numMenuItems = 6` (valid indices 0–5); index 5 is Exit.
+- Trial: `numMenuItems = 7` (valid indices 0–6); index 5 is Marketplace and index 6 is Exit.
+- Therefore an appended T360 entry must be index 6 in full game and index 7 in Trial. **Critical collision:** the existing `selectedMenu == 6` handler performs Exit in Trial, so it must branch on `Main.isTrial`: preserve Exit for Trial and open T360 in the full game. Add a separate `selectedMenu == 7` handler for T360 in Trial.
 - `menuString`, `menuScale`, and `menuHC` are allocated with capacity 14, so those arrays have room.
 - `MENU_PAUSE_COORDS` is a separate static `Location[]` of length 7. Its current Y coordinates are 221, 259, 297, 334, 372, 421, 459.
 - `UI::SetMenu()` sets `uiHeight = 7` and assigns `MENU_PAUSE_COORDS` for pause mode.
@@ -20,7 +20,7 @@ Status: static analysis only. No assembly has been modified.
 2. Change only the pause-mode `SetMenu()` branch to `uiHeight = 8`.
 3. In `UpdateMenu()`, add the T360 label at index 6 for full game and index 7 for Trial, after preserving the existing localized strings.
 4. Extend pause-menu layout/visibility handling so the new coordinate is enabled in both modes.
-5. Add a new selection branch for the appended index, preserving all original selection branches and actions.
+5. Split the existing `selectedMenu == 6` branch on `Main.isTrial`: Trial retains Exit; full game opens T360. Add `selectedMenu == 7` for Trial T360.
 6. Validate branch targets, stack consistency, max stack, exception regions, and metadata with an IL-aware writer before emitting any modified assembly.
 
 ## Safety gates
