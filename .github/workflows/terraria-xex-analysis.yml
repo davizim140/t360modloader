@@ -12,6 +12,7 @@ on:
       - 'tools/report_menu_render_context.py'
       - 'tools/report_pause_menu_capacity.py'
       - 'tools/report_ui_raw_il.py'
+      - 'tools/audit_pause_menu_il.py'
 
 permissions:
   contents: read
@@ -230,6 +231,13 @@ jobs:
           python3 tools/report_ui_raw_il.py research/output/Terraria-UI.il \
             --json research/output/ui-raw-il.json \
             --markdown research/output/ui-raw-il.md
+
+      - name: Audit exact pause menu IL branches
+        shell: bash
+        run: |
+          python3 tools/audit_pause_menu_il.py research/output/Terraria-UI.il \
+            --json research/output/pause-menu-il-audit.json \
+            --markdown research/output/pause-menu-il-audit.md
 
       - name: Inventory managed build references
         shell: bash
