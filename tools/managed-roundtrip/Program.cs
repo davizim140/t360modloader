@@ -164,7 +164,9 @@ if (Path.GetFullPath(input) == output) throw new InvalidOperationException("Outp
 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 
 var inputHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(input))).ToLowerInvariant();
-var reader = new ReaderParameters { InMemory = true, ReadSymbols = false, ReadingMode = ReadingMode.Immediate };
+using var xnaNetStub = CreateMetadataOnlyXnaNetStub();
+using var resolver = new TargetedAssemblyResolver(xnaNetStub);
+var reader = new ReaderParameters { InMemory = true, ReadSymbols = false, ReadingMode = ReadingMode.Immediate, AssemblyResolver = resolver };
 
 object before;
 using (var source = AssemblyDefinition.ReadAssembly(input, reader))
