@@ -15,6 +15,7 @@ on:
       - 'tools/audit_pause_menu_il.py'
       - 'tools/managed-assembly-inventory/**'
       - 'tools/managed-roundtrip/**'
+      - 'tools/managed-maxstack-audit/**'
 
 permissions:
   contents: read
@@ -195,6 +196,13 @@ jobs:
           test -s research/output/Terraria.Managed.roundtrip.dll
           test -s research/output/Terraria.Managed.roundtrip.dll.report.json
           jq -e '.status == "roundtrip-pass-maxstack-normalized" and .sourceFileUnchanged == true and .ilMetadataAndResourcesPreservedExceptMaxStack == true and .maxStackChangesOnlyReduced == true' research/output/Terraria.Managed.roundtrip.dll.report.json
+
+      - name: Independently audit rewritten IL stack depths
+        shell: bash
+        run: |
+          dotnet run --project tools/managed-maxstack-audit/ManagedMaxStackAudit.csproj --             research/output/Terraria.Managed.roundtrip.dll
+          test -s research/output/Terraria.Managed.roundtrip.dll.maxstack-audit.json
+          jq -e '.status == "maxstack-audit-pass" and .failureCount == 0 and .methodsAnalyzed > 0'             research/output/Terraria.Managed.roundtrip.dll.maxstack-audit.json
 
       - name: Install ILSpy command-line decompiler
         run: dotnet tool install ilspycmd --tool-path tools/ilspy --version 11.1.0.9782
