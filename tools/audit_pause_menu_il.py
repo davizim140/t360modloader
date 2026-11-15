@@ -7,7 +7,7 @@ from pathlib import Path
 
 def method_body(il, name):
     marker = "} // end of method UI::" + name
-    end = il.find(marker)
+    end = il.rfind(marker)
     if end < 0:
         raise ValueError("method end not found: " + name)
     start = il.rfind(".method", 0, end)
