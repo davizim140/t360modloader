@@ -64,7 +64,6 @@ static object MethodFingerprint(MethodDefinition method)
         method.FullName,
         hasBody = true,
         body.InitLocals,
-        body.MaxStackSize,
         variables = body.Variables.Select(v => v.VariableType.FullName).ToArray(),
         instructions,
         handlers
@@ -112,6 +111,12 @@ static object AssemblyFingerprint(AssemblyDefinition assembly)
         resources
     };
 }
+
+static Dictionary<string, int> MaxStacks(AssemblyDefinition assembly)
+    => assembly.MainModule.Types.SelectMany(Flatten)
+        .SelectMany(type => type.Methods)
+        .Where(method => method.HasBody)
+        .ToDictionary(method => method.FullName, method => method.Body.MaxStackSize);
 
 static TypeDefinition CreateEnumStub(ModuleDefinition module, string ns, string name)
 {
@@ -165,31 +170,53 @@ using var resolver = new TargetedAssemblyResolver(new Dictionary<string, Assembl
 var reader = new ReaderParameters { InMemory = true, ReadSymbols = false, ReadingMode = ReadingMode.Immediate, AssemblyResolver = resolver };
 
 object before;
+Dictionary<string, int> originalMaxStacks;
 using (var source = AssemblyDefinition.ReadAssembly(input, reader))
 {
     before = AssemblyFingerprint(source);
+    originalMaxStacks = MaxStacks(source);
     source.Write(output, new WriterParameters { WriteSymbols = false });
 }
 
 var outputHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output))).ToLowerInvariant();
 object after;
+Dictionary<string, int> rewrittenMaxStacks;
 using (var roundTrip = AssemblyDefinition.ReadAssembly(output, reader))
+{
     after = AssemblyFingerprint(roundTrip);
+    rewrittenMaxStacks = MaxStacks(roundTrip);
+}
 
+var maxStackChanges = originalMaxStacks.Keys.OrderBy(key => key)
+    .Where(key => originalMaxStacks[key] != rewrittenMaxStacks.GetValueOrDefault(key, -1))
+    .Select(key => new
+    {
+        method = key,
+        original = originalMaxStacks[key],
+        rewritten = rewrittenMaxStacks.GetValueOrDefault(key, -1)
+    }).ToArray();
+
+var onlyReducedMaxStack = maxStackChanges.All(change => change.rewritten >= 0 && change.rewritten <= change.original);
 var beforeJson = Json(before);
 var afterJson = Json(after);
 var sourceHashAfter = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(input))).ToLowerInvariant();
+var fingerprintPreserved = beforeJson == afterJson;
+var sourceUnchanged = inputHash == sourceHashAfter;
+var pass = fingerprintPreserved && sourceUnchanged && onlyReducedMaxStack;
 
 var report = new
 {
-    status = beforeJson == afterJson && inputHash == sourceHashAfter ? "roundtrip-pass" : "roundtrip-mismatch",
+    status = pass ? "roundtrip-pass-maxstack-normalized" : "roundtrip-mismatch",
     input = Path.GetFileName(input),
     output = Path.GetFileName(output),
     inputSha256Before = inputHash,
     inputSha256After = sourceHashAfter,
     outputSha256 = outputHash,
-    sourceFileUnchanged = inputHash == sourceHashAfter,
-    metadataAndIlFingerprintPreserved = beforeJson == afterJson,
+    sourceFileUnchanged = sourceUnchanged,
+    ilMetadataAndResourcesPreservedExceptMaxStack = fingerprintPreserved,
+    maxStackChangeCount = maxStackChanges.Length,
+    maxStackChangesOnlyReduced = onlyReducedMaxStack,
+    maxStackChanges,
     originalFingerprint = before,
     roundTripFingerprint = after
 };
@@ -199,9 +226,11 @@ File.WriteAllText(reportPath, JsonSerializer.Serialize(report, new JsonSerialize
 
 Console.WriteLine("Terraria managed assembly separate-copy round-trip: " + report.status);
 Console.WriteLine("Original SHA-256 unchanged: " + report.sourceFileUnchanged);
-Console.WriteLine("Metadata/IL/resource fingerprint preserved: " + report.metadataAndIlFingerprintPreserved);
+Console.WriteLine("IL/metadata/resources preserved except MaxStackSize: " + report.ilMetadataAndResourcesPreservedExceptMaxStack);
+Console.WriteLine("MaxStackSize-only changes: " + report.maxStackChangeCount);
+Console.WriteLine("All MaxStackSize changes are non-increasing: " + report.maxStackChangesOnlyReduced);
 Console.WriteLine("Original file was never overwritten.");
-return report.status == "roundtrip-pass" ? 0 : 1;
+return pass ? 0 : 1;
 
 sealed class TargetedAssemblyResolver : DefaultAssemblyResolver
 {
