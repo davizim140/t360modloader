@@ -11,7 +11,7 @@ def method_body(il, name):
     start = il.rfind(".method", 0, end)
     if start < 0: raise ValueError("method declaration for " + name + " not found")
     body = il[start:end]
-    if name + "(" not in body:
+    if name not in body[:500] or "instance void" not in body[:500]:
         raise ValueError("method declaration does not match " + name)
     return body
 
