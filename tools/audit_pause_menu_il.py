@@ -4,7 +4,7 @@ import argparse, json, re
 from pathlib import Path
 
 def method_body(il, name):
-    needle = re.search(r"\\b" + re.escape(name) + r"\\s*\\(", il)
+    needle = re.search(r"\b" + re.escape(name) + r"\s*\(", il)
     if not needle: raise ValueError("method " + name + " not found")
     start = il.rfind(".method", 0, needle.start())
     if start < 0: raise ValueError("method declaration for " + name + " not found")
