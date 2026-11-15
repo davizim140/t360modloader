@@ -1,0 +1,41 @@
+name: Managed IL writer smoke test
+
+on:
+  push:
+    paths:
+      - "tools/managed-patcher-smoke/**"
+      - ".github/workflows/managed-patcher-smoke.yml"
+  pull_request:
+    paths:
+      - "tools/managed-patcher-smoke/**"
+      - ".github/workflows/managed-patcher-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cecil-roundtrip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore tools/managed-patcher-smoke/ManagedPatcherSmoke.csproj
+
+      - name: Run synthetic IL round-trip test
+        run: dotnet run --no-restore --project tools/managed-patcher-smoke/ManagedPatcherSmoke.csproj
+
+      - name: Upload smoke-test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-patcher-smoke
+          path: artifacts/managed-patcher-smoke/
+          if-no-files-found: error
+          retention-days: 7
