@@ -120,6 +120,7 @@ var report = new
     methodBodyCount = methodsWithBody.Count,
     assemblyReferences = module.AssemblyReferences.Select(reference => reference.FullName).ToArray(),
     watchedMethods,
+    externalParameterConstants = externalConstants,
     invalidMethodBodies = invalidBodies,
     sourceWasOpenedReadOnly = true,
     assemblyWasWritten = false
