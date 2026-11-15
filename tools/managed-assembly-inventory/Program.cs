@@ -91,6 +91,19 @@ var invalidBodies = methodsWithBody
     .Select(method => method.FullName)
     .ToList();
 
+var externalConstants = allTypes.SelectMany(type => type.Methods)
+    .SelectMany(method => method.Parameters.Select(parameter => new
+    {
+        owner = method.FullName,
+        name = parameter.Name,
+        type = parameter.ParameterType.FullName,
+        scope = parameter.ParameterType.Scope?.Name ?? "",
+        hasConstant = parameter.HasConstant,
+        constant = parameter.HasConstant ? Convert.ToString(parameter.Constant, System.Globalization.CultureInfo.InvariantCulture) : null
+    }))
+    .Where(parameter => parameter.hasConstant && parameter.scope.Length > 0)
+    .ToArray();
+
 var report = new
 {
     status = "read-only-cecil-inventory",
