@@ -186,8 +186,7 @@ jobs:
             research/output/Terraria.Managed.dll \
             --output research/output/managed-cecil-inventory.json
 
-      - name: Diagnostic round-trip attempt (external XNA references may be unavailable)
-        continue-on-error: true
+      - name: Required separate-copy round-trip with metadata-only XNA enum resolver
         shell: bash
         run: |
           dotnet run --project tools/managed-roundtrip/ManagedRoundTrip.csproj -- \
