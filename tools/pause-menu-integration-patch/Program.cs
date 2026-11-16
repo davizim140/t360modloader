@@ -39,6 +39,8 @@ var back = ui.Methods.Single(m => m.Name == "IsBackButtonTriggered" && m.Paramet
 var playSound = main.Methods.Single(m => m.Name == "PlaySound" && m.Parameters.Count == 1 &&
     m.Parameters[0].ParameterType.MetadataType == MetadataType.Int32);
 var statusText = ui.Fields.Single(f => f.Name == "statusText" && f.FieldType.MetadataType == MetadataType.String);
+var menuModeType = module.Types.Single(t => t.FullName == "Terraria.MenuMode");
+var statusModeValue = Convert.ToInt32(menuModeType.Fields.Single(f => f.Name == "STATUS_SCREEN").Constant);
 var uiHeight = ui.Fields.Single(f => f.Name == "uiHeight");
 var pauseCoords = ui.Fields.Single(f => f.Name == "MENU_PAUSE_COORDS");
 
@@ -111,7 +113,7 @@ var t360 = new[]
     Instruction.Create(OpCodes.Ldc_I4_S, (sbyte)10),
     Instruction.Create(OpCodes.Call, playSound),
     Instruction.Create(OpCodes.Ldarg_0),
-    Instruction.Create(OpCodes.Ldc_I4_S, (sbyte)14), // MenuMode.STATUS_SCREEN
+    Instruction.Create(OpCodes.Ldc_I4, statusModeValue), // MenuMode.STATUS_SCREEN
     Instruction.Create(OpCodes.Ldc_I4_1),
     Instruction.Create(OpCodes.Ldc_I4_0),
     Instruction.Create(OpCodes.Call, setMenu),
