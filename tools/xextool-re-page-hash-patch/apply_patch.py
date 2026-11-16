@@ -102,7 +102,7 @@ bool verify_page_hash_chain(const std::vector<uint8_t>& header, uint32_t sec,
     src = src.replace(sig, """if (!rebuild_page_hash_chain(B.hdr, B.sec, image,
                                 x.security().image_flags, x.security().page_count))
         return x.raw();
-    crypto::devkit_sign(B.hdr, B.data_offset,")
+    crypto::devkit_sign(B.hdr, B.data_offset,\n""")
 
     # Add public verification API outside the anonymous namespace.
     end_marker = """std::vector<uint8_t> reserialize_with_image(const XexFile& x,
