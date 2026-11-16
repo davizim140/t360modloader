@@ -21,9 +21,10 @@ The project is not ready to install on the console yet.
 
 - Original managed assembly inventory and separate-copy round-trip passed.
 - Pause coordinate array extension passed in a separate DLL copy.
-- Pause height and label insertion anchors passed read-only audits.
-- Selection-branch audit is being corrected to inspect Cecil IL directly.
-- No integrated menu patch exists yet.
+- Integrated T360 pause-menu patch now passes: pause height 8, Trial count 8, full-game count 7, label at loc9+5, selection opens STATUS_SCREEN, and B returns through PrevMenu.
+- Independent IL stack-depth audit passed for all 1,338 methods with zero failures.
+- Branch and exception-handler targets validated; patched DLL reopened; source DLL hash unchanged.
+- The T360 screen is currently a landing page, not yet a .tmod browser or loader.
 - No rebuilt `game.exe.xex` or deployable STFS test package exists.
 - No Xbox 360 runtime test has been performed.
 
