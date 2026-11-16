@@ -164,7 +164,7 @@ var report = new
     output = new { file = Path.GetFileName(output), sha256 = Hash(output) },
     changes = new[] { "pause uiHeight 7->8", "Trial pause item count 7->8", "Full-game pause item count 6->7", "full-game coordinate slot 6 enabled", "T360 ModLoader label at loc9+5", "selection opens STATUS_SCREEN page", "B returns through PrevMenu; original Exit branch retained" },
     validation = new { controlFlowTargetsValid = controlFlowValid, patchedAssemblyReopened = true, moduleIdentityPreserved = reopened.MainModule.Mvid == beforeMvid },
-    safety = new { originalDllOverwritten = false, gameXexProduced = false, xboxRuntimeTested = false, coordinateY497RuntimeValidated = false }
+    safety = new { originalDllOverwritten = false, gameXexProducedByThisPatchStep = false, xboxRuntimeTested = false, coordinateY497RuntimeValidated = false }
 };
 File.WriteAllText(output + ".patch-report.json", JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
 Console.WriteLine($"T360 pause menu patch: {report.status}");
