@@ -20,12 +20,21 @@ const int newX = 480;
 const int newY = 497;
 var inputHash = Hash(input);
 
-using var assembly = AssemblyDefinition.ReadAssembly(input, new ReaderParameters
+using var xnaNetStub = CreateMetadataOnlyStub("Microsoft.Xna.Framework.Net", "Microsoft.Xna.Framework.Net", "SendDataOptions");
+using var xnaCoreStub = CreateMetadataOnlyStub("Microsoft.Xna.Framework", "Microsoft.Xna.Framework.Input", "Buttons");
+using var resolver = new TargetedAssemblyResolver(new Dictionary<string, AssemblyDefinition>
+{
+    ["Microsoft.Xna.Framework.Net"] = xnaNetStub,
+    ["Microsoft.Xna.Framework"] = xnaCoreStub
+});
+var reader = new ReaderParameters
 {
     InMemory = true,
     ReadSymbols = false,
-    ReadingMode = ReadingMode.Immediate
-});
+    ReadingMode = ReadingMode.Immediate,
+    AssemblyResolver = resolver
+};
+using var assembly = AssemblyDefinition.ReadAssembly(input, reader);
 
 if (assembly.Name.Name != "game" || assembly.MainModule.Name != "game.exe")
     throw new InvalidOperationException("Unexpected assembly identity; refusing to patch.");
@@ -112,12 +121,7 @@ assembly.Write(output, new WriterParameters { WriteSymbols = false });
 var outputHash = Hash(output);
 var sourceHashAfterWrite = Hash(input);
 
-using var reopened = AssemblyDefinition.ReadAssembly(output, new ReaderParameters
-{
-    InMemory = true,
-    ReadSymbols = false,
-    ReadingMode = ReadingMode.Immediate
-});
+using var reopened = AssemblyDefinition.ReadAssembly(output, reader);
 var reopenedUi = reopened.MainModule.Types.Single(t => t.FullName == "Terraria.UI");
 var reopenedCctor = reopenedUi.Methods.Single(m => m.Name == ".cctor" && m.IsStatic && m.Parameters.Count == 0 && m.HasBody);
 var verified = InspectPauseArray(reopenedCctor, reopenedUi);
@@ -296,3 +300,42 @@ static IEnumerable<TypeDefinition> Flatten(IEnumerable<TypeDefinition> types)
 record ArrayTarget(Instruction LengthInstruction, Instruction NewArray, VariableDefinition Local, Instruction FieldStore);
 record Coordinate(int Index, int X, int Y, Instruction? Start);
 record PauseArrayInspection(int Length, Coordinate[] Coordinates);
+
+static TypeDefinition CreateEnumStub(ModuleDefinition module, string ns, string name)
+{
+    var core = new AssemblyNameReference("mscorlib", new Version(2, 0, 5, 0))
+    {
+        PublicKeyToken = Convert.FromHexString("7cec85d7bea7798e")
+    };
+    var enumType = new TypeDefinition(
+        ns,
+        name,
+        TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.AnsiClass | TypeAttributes.BeforeFieldInit,
+        new TypeReference("System", "Enum", module, core));
+    enumType.Fields.Add(new FieldDefinition(
+        "value__",
+        FieldAttributes.Public | FieldAttributes.SpecialName | FieldAttributes.RTSpecialName,
+        module.TypeSystem.Int32));
+    return enumType;
+}
+
+static AssemblyDefinition CreateMetadataOnlyStub(string assemblyName, string enumNamespace, string enumName)
+{
+    var name = new AssemblyNameDefinition(assemblyName, new Version(4, 0, 0, 0))
+    {
+        PublicKeyToken = Convert.FromHexString("842cf8be1de50553")
+    };
+    var stub = AssemblyDefinition.CreateAssembly(name, name.Name, ModuleKind.Dll);
+    stub.MainModule.Types.Add(CreateEnumStub(stub.MainModule, enumNamespace, enumName));
+    return stub;
+}
+
+sealed class TargetedAssemblyResolver : DefaultAssemblyResolver
+{
+    private readonly IReadOnlyDictionary<string, AssemblyDefinition> stubs;
+    public TargetedAssemblyResolver(IReadOnlyDictionary<string, AssemblyDefinition> stubs) => this.stubs = stubs;
+    public override AssemblyDefinition Resolve(AssemblyNameReference name)
+        => stubs.TryGetValue(name.Name, out var stub) ? stub : base.Resolve(name);
+    public override AssemblyDefinition Resolve(AssemblyNameReference name, ReaderParameters parameters)
+        => stubs.TryGetValue(name.Name, out var stub) ? stub : base.Resolve(name, parameters);
+}
