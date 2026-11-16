@@ -71,7 +71,7 @@ var hiddenSlot6 = FindUnique(update, i => Is(i, Code.Ldsfld) && Ref(i, pauseCoor
     Is(i.Next, Code.Ldc_I4_6) && Is(i.Next?.Next, Code.Ldelema) &&
     Is(i.Next?.Next?.Next, Code.Ldc_I4_0) &&
     Is(i.Next?.Next?.Next?.Next, Code.Stfld) && RefName(i.Next?.Next?.Next?.Next, "X"));
-hiddenSlot6.Next!.Next!.Next!.OpCode = OpCodes.Ldc_I4;
+il.Replace(hiddenSlot6.Next!.Next!.Next!, Instruction.Create(OpCodes.Ldc_I4, 480));
 
 // Insert menuString[loc9 + 5] = "T360 ModLoader" after the five existing pause labels.
 var labelAnchor = FindUnique(update, i => Is(i, Code.Ldsfld) && RefName(i, "menuString") == false &&
@@ -124,19 +124,20 @@ foreach (var ins in t360) il.InsertBefore(exitTest, ins);
 
 // STATUS_SCREEN becomes a usable page: B returns to the pause menu.
 var statusTextLoad = FindUnique(update, i => Is(i, Code.Ldfld) && Ref(i, statusText));
-var tipsUpdate = FindUniqueAfter(statusTextLoad, i => Is(i, Code.Call) &&
+var tipsUpdate = FindFirstAfter(statusTextLoad, i => Is(i, Code.Call) &&
     i.Operand is MethodReference mr && mr.DeclaringType.FullName == "Terraria.Tips" && mr.Name == "Update");
+var skipBack = Instruction.Create(OpCodes.Nop);
 var backCode = new[]
 {
     Instruction.Create(OpCodes.Ldarg_0),
     Instruction.Create(OpCodes.Call, back),
-    Instruction.Create(OpCodes.Brfalse_S, tipsUpdate.Next!),
+    Instruction.Create(OpCodes.Brfalse_S, skipBack),
     Instruction.Create(OpCodes.Ldarg_0),
-    Instruction.Create(OpCodes.Call, prevMenu)
+    Instruction.Create(OpCodes.Call, prevMenu),
+    skipBack
 };
-foreach (var ins in backCode) il.InsertAfter(tipsUpdate, ins);
-var skipBack = backCode[0];
-backCode[2].Operand = tipsUpdate.Next!;
+var insertion = tipsUpdate;
+foreach (var ins in backCode) { il.InsertAfter(insertion, ins); insertion = ins; }
 
 body.MaxStackSize = Math.Max(body.MaxStackSize, 4);
 var beforeMvid = module.Mvid;
@@ -187,11 +188,10 @@ static Instruction FindUnique(MethodDefinition m, Func<Instruction, bool> predic
     if (hits.Length != 1) throw new InvalidOperationException($"Expected one IL anchor in {m.FullName}; found {hits.Length}.");
     return hits[0];
 }
-static Instruction FindUniqueAfter(Instruction start, Func<Instruction, bool> predicate)
+static Instruction FindFirstAfter(Instruction start, Func<Instruction, bool> predicate)
 {
-    var hits = start.Next?.GetSelfAndFollowing().Where(predicate).ToArray() ?? Array.Empty<Instruction>();
-    if (hits.Length != 1) throw new InvalidOperationException($"Expected one following IL anchor; found {hits.Length}.");
-    return hits[0];
+    return start.Next?.GetSelfAndFollowing().FirstOrDefault(predicate)
+        ?? throw new InvalidOperationException("Could not find following IL anchor.");
 }
 static bool Validate(ModuleDefinition module)
 {
