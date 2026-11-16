@@ -19,6 +19,7 @@ on:
       - 'tools/pause-menu-target-audit/**'
       - 'tools/pause-menu-patch-planner/**'
       - 'tools/pause-coordinate-patch/**'
+      - 'tools/pause-height-audit/**'
 
 permissions:
   contents: read
@@ -234,6 +235,15 @@ jobs:
           test -s research/output/Terraria.Managed.pausecoords.dll
           test -s research/output/Terraria.Managed.pausecoords.dll.patch-report.json
           jq -e '.status == "pause-coordinate-copy-patch-pass" and .change.previousLength == 7 and .change.newLength == 8 and .change.addedSlot.index == 7 and .validation.sourceFileUnchanged == true and .validation.branchAndExceptionHandlerTargetsValid == true and .safety.originalDllOverwritten == false and .safety.xexProduced == false' research/output/Terraria.Managed.pausecoords.dll.patch-report.json
+
+      - name: Read-only audit of pause uiHeight patch target
+        shell: bash
+        run: |
+          dotnet run --project tools/pause-height-audit/PauseHeightAudit.csproj -- \
+            research/output/Terraria.Managed.pausecoords.dll \
+            research/output/pause-height-target-audit.json
+          test -s research/output/pause-height-target-audit.json
+          jq -e '.status == "pause-height-target-audit-pass" and .mode == "read-only-no-patch" and .target.matchCount == 1 and .target.currentHeight == 7 and .safety.sourceFileUnchanged == true and .safety.assemblyWritten == false' research/output/pause-height-target-audit.json
 
       - name: Independently audit first patched copy stack depths
         shell: bash
