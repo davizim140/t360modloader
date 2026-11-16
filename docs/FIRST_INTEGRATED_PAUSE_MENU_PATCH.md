@@ -32,10 +32,10 @@ The coordinate array was previously extended from seven to eight entries in the 
 - Independent IL stack-depth audit: 1,338 methods analyzed, zero failures.
 - GitHub Actions workflow completed successfully.
 
-## Still not done
+## Current build status
 
 - This is a landing page, not a .tmod file browser, package verifier, or runtime mod loader.
-- No rebuilt `game.exe.xex` exists.
-- No rebuilt STFS package or deployable test folder exists.
+- A separate rebuilt `game.exe.xex` now exists and passed embedded-DLL and page-hash round-trip checks. See [FIRST_REBUILT_GAME_XEX.md](FIRST_REBUILT_GAME_XEX.md).
+- No rebuilt STFS package or complete deployable test folder exists.
 - No Xbox 360 runtime test has been performed.
 - Do not replace the original game files with this DLL.
