@@ -94,11 +94,11 @@ MethodDefinition UniqueMethod(string name, int parameterCount)
     return matches[0];
 }
 
-static object Check(string name, bool passed, object evidence) => new { Name = name, Passed = passed, Evidence = evidence };
+static CheckResult Check(string name, bool passed, object evidence) => new(name, passed, evidence);
 
-static List<object> FindPauseArrayAllocations(MethodDefinition method)
+static List<ArrayAllocation> FindPauseArrayAllocations(MethodDefinition method)
 {
-    var result = new List<object>();
+    var result = new List<ArrayAllocation>();
     var ins = method.Body.Instructions;
     for (int i = 1; i < ins.Count - 1; i++)
     {
@@ -112,10 +112,13 @@ static List<object> FindPauseArrayAllocations(MethodDefinition method)
             if (ins[j].OpCode.Code == Code.Ldelema && ins[j].Operand is TypeReference et && et.FullName == "Terraria.Location" &&
                 TryInt(ins[j - 1], out var index))
                 indexes.Add(index);
-            if (ins[j].OpCode.Code == Code.Stsfld && ins[j].Operand is FieldReference f && f.Name == "MENU_PAUSE_COORDS")
+            if (ins[j].OpCode.Code == Code.Stsfld && ins[j].Operand is FieldReference f)
+            {
+                if (f.Name == "MENU_PAUSE_COORDS")
+                    result.Add(new ArrayAllocation(i, length, indexes.Distinct().Order().ToArray()));
                 break;
+            }
         }
-        result.Add(new { instruction = i, declaredLength = length, initializedIndexes = indexes.Distinct().Order().ToArray() });
     }
     return result;
 }
@@ -155,7 +158,7 @@ static List<object> FindCoordinateIndexWrites(MethodDefinition method, int index
         if (ins[i].OpCode.Code != Code.Ldelema || ins[i].Operand is not TypeReference t || t.FullName != "Terraria.Location" ||
             !TryInt(ins[i - 1], out var found) || found != index)
             continue;
-        var fieldStore = ins.Skip(i + 1).Take(4).FirstOrDefault(x => x.OpCode.Code == Code.Stfld && IsField(x, "X"));
+        var fieldStore = ins.Skip(i + 1).Take(4).FirstOrDefault(x => x.OpCode.Code == Code.Stfld && HasFieldName(x, "X"));
         if (fieldStore is not null)
             result.Add(new { instruction = i - 1, xFieldStoreInstruction = fieldStore.Offset });
     }
@@ -167,6 +170,9 @@ static int CountFieldReferences(MethodDefinition method, string fieldName) =>
 
 static bool IsField(Instruction instruction, string name) =>
     instruction.Operand is FieldReference f && f.Name == name && f.DeclaringType.FullName == "Terraria.UI";
+
+static bool HasFieldName(Instruction instruction, string name) =>
+    instruction.Operand is FieldReference f && f.Name == name;
 
 static bool TryInt(Instruction instruction, out int value)
 {
@@ -188,3 +194,6 @@ static bool TryInt(Instruction instruction, out int value)
     };
     return value != int.MinValue;
 }
+
+record CheckResult(string Name, bool Passed, object Evidence);
+record ArrayAllocation(int Instruction, int DeclaredLength, int[] InitializedIndexes);
