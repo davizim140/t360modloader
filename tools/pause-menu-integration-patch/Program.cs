@@ -129,7 +129,7 @@ var statusTextLoad = update.Body.Instructions.First(i => Is(i, Code.Ldfld) && Re
     Is(i.Previous, Code.Ldarg_0) && Is(i.Next, Code.Stelem_Ref) &&
     Is(i.Previous?.Previous, Code.Ldc_I4_0));
 var tipsUpdate = FindFirstAfter(statusTextLoad, i => Is(i, Code.Callvirt) &&
-    i.Operand is MethodReference mr && mr.DeclaringType.FullName == "Terraria.Tips" && mr.Name == "Update");
+    i.Operand is MethodReference mr && mr.DeclaringType.FullName == "Terraria.TextSequenceBlock" && mr.Name == "Update");
 var skipBack = Instruction.Create(OpCodes.Nop);
 var backCode = new[]
 {
