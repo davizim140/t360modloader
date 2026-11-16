@@ -21,6 +21,7 @@ on:
       - 'tools/pause-coordinate-patch/**'
       - 'tools/pause-height-audit/**'
       - 'tools/pause-label-audit/**'
+      - 'tools/audit_pause_selection.py'
 
 permissions:
   contents: read
@@ -254,6 +255,14 @@ jobs:
             research/output/pause-label-anchor-audit.json
           test -s research/output/pause-label-anchor-audit.json
           jq -e '.status == "pause-label-anchor-audit-pass" and .mode == "read-only-no-patch" and .target.matchingSequenceCount == 1 and .target.newRelativeIndex5WriteAlreadyPresent == false and .safety.sourceFileUnchanged == true and .safety.assemblyWritten == false' research/output/pause-label-anchor-audit.json
+
+      - name: Read-only audit of pause selection branch insertion point
+        shell: bash
+        run: |
+          python3 tools/audit_pause_selection.py research/output/decompiled/Terraria/UI.cs \
+            --json research/output/pause-selection-anchor-audit.json
+          test -s research/output/pause-selection-anchor-audit.json
+          jq -e '.status == "pause-selection-anchor-audit-pass" and .mode == "read-only-no-patch" and .target.existingExitActionFound == true and .target.newRelativeIndex5HandlerAlreadyPresent == false and .safety.sourceFileUnchanged == true and .safety.assemblyWritten == false' research/output/pause-selection-anchor-audit.json
 
       - name: Independently audit first patched copy stack depths
         shell: bash
