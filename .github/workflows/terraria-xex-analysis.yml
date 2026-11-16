@@ -21,6 +21,8 @@ on:
       - 'tools/pause-coordinate-patch/**'
       - 'tools/pause-height-audit/**'
       - 'tools/pause-label-audit/**'
+      - 'tools/pause-selection-audit/**'
+      - 'tools/pause-menu-integration-patch/**'
       - 'tools/audit_pause_selection.py'
 
 permissions:
