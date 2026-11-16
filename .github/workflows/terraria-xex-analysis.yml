@@ -18,6 +18,7 @@ on:
       - 'tools/managed-maxstack-audit/**'
       - 'tools/pause-menu-target-audit/**'
       - 'tools/pause-menu-patch-planner/**'
+      - 'tools/pause-coordinate-patch/**'
 
 permissions:
   contents: read
@@ -223,6 +224,24 @@ jobs:
             research/output/pause-menu-patch-plan.json
           test -s research/output/pause-menu-patch-plan.json
           jq -e '.status == "dry-run-plan-ready" and .mode == "read-only-dry-run" and .output.writesPatchedAssembly == false and .safety.originalAssemblyNotModified == true and .safety.noPatchedDllProduced == true' research/output/pause-menu-patch-plan.json
+
+      - name: Patch pause coordinate array in separate copy
+        shell: bash
+        run: |
+          dotnet run --project tools/pause-coordinate-patch/PauseCoordinatePatch.csproj -- \
+            research/output/Terraria.Managed.roundtrip.dll \
+            research/output/Terraria.Managed.pausecoords.dll
+          test -s research/output/Terraria.Managed.pausecoords.dll
+          test -s research/output/Terraria.Managed.pausecoords.dll.patch-report.json
+          jq -e '.status == "pause-coordinate-copy-patch-pass" and .change.previousLength == 7 and .change.newLength == 8 and .change.addedSlot.index == 7 and .validation.sourceFileUnchanged == true and .validation.branchAndExceptionHandlerTargetsValid == true and .safety.originalDllOverwritten == false and .safety.xexProduced == false' research/output/Terraria.Managed.pausecoords.dll.patch-report.json
+
+      - name: Independently audit first patched copy stack depths
+        shell: bash
+        run: |
+          dotnet run --project tools/managed-maxstack-audit/ManagedMaxStackAudit.csproj -- \
+            research/output/Terraria.Managed.pausecoords.dll
+          test -s research/output/Terraria.Managed.pausecoords.dll.maxstack-audit.json
+          jq -e '.status == "maxstack-audit-pass" and .failureCount == 0 and .methodsAnalyzed > 0' research/output/Terraria.Managed.pausecoords.dll.maxstack-audit.json
 
       - name: Install ILSpy command-line decompiler
         run: dotnet tool install ilspycmd --tool-path tools/ilspy --version 11.1.0.9782
