@@ -65,7 +65,7 @@ for (int i = 1; i < instructions.Count - 1; i++)
         continue;
 
     var store = instructions.Skip(i + 2).TakeWhile(x => x != null)
-        .FirstOrDefault(x => x.OpCode.Code == Code.Stsfld && x.Operand is FieldReference f && f.FullName == field.FullName);
+        .FirstOrDefault(x => x.OpCode.Code == Code.Stsfld && x.Operand is FieldReference f && f.Name == field.Name && f.DeclaringType.FullName == "Terraria.UI");
     if (store is null) continue;
     allocations.Add(new ArrayTarget(instructions[i - 1], instructions[i], local, store));
 }
@@ -248,7 +248,20 @@ static PauseArrayInspection InspectPauseArray(MethodDefinition cctor, TypeDefini
             var store = instructions.Skip(i + 2).FirstOrDefault(x => x.OpCode.Code == Code.Stsfld && x.Operand is FieldReference f && f.FullName == field.FullName);
             if (store is not null) matches.Add((length, local, store));
         }
-    if (matches.Count != 1) throw new InvalidOperationException("Could not uniquely re-find pause coordinate array after writing.");
+    if (matches.Count != 1)
+    {
+        var arrays = instructions.Select((instruction, index) => (instruction, index))
+            .Where(x => x.instruction.OpCode.Code == Code.Newarr && x.instruction.Operand is TypeReference t && t.FullName == "Terraria.Location")
+            .Select(x => new
+            {
+                index = x.index,
+                previous = x.index > 0 ? instructions[x.index - 1].OpCode.Code.ToString() : "none",
+                lengthOk = x.index > 0 && TryInt(instructions[x.index - 1], out var n) ? n : -999,
+                next = x.index + 1 < instructions.Count ? instructions[x.index + 1].OpCode.Code.ToString() : "none",
+                localOk = x.index + 1 < instructions.Count && TryStoredLocal(instructions[x.index + 1], cctor.Body, out _)
+            }).ToArray();
+        throw new InvalidOperationException($"Could not uniquely re-find pause coordinate array after writing; matches={matches.Count}; candidates={JsonSerializer.Serialize(arrays)}");
+    }
     var m = matches[0];
     var end = instructions.IndexOf(m.Store);
     var coords = new List<Coordinate>();
