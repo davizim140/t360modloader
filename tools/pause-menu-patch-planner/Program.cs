@@ -31,8 +31,8 @@ var updateMouse = UniqueMethod("UpdateMouse", 0);
 
 var pauseArrayAllocations = FindPauseArrayAllocations(cctor);
 var pauseSetMenuAnchors = FindPauseSetMenuAnchors(setMenu);
-var onlineItemCountAnchors = FindFieldStores(updateMenu, "numMenuItems", 7);
-var offlineItemCountAnchors = FindFieldStores(updateMenu, "numMenuItems", 6);
+var onlineItemCountAnchors = FindPauseItemCountStores(updateMenu, 7);
+var offlineItemCountAnchors = FindPauseItemCountStores(updateMenu, 6);
 var pauseCoordinateIndex6 = FindCoordinateIndexWrites(updateMenu, 6);
 var drawMenuCountRefs = CountFieldReferences(drawMenu, "numMenuItems");
 var mouseHeightRefs = CountFieldReferences(updateMouse, "uiHeight");
@@ -139,13 +139,19 @@ static List<object> FindPauseSetMenuAnchors(MethodDefinition method)
     return result;
 }
 
-static List<object> FindFieldStores(MethodDefinition method, string fieldName, int value)
+static List<object> FindPauseItemCountStores(MethodDefinition method, int value)
 {
     var ins = method.Body.Instructions;
     var result = new List<object>();
-    for (int i = 1; i < ins.Count; i++)
-        if (ins[i].OpCode.Code == Code.Stfld && IsField(ins[i], fieldName) && TryInt(ins[i - 1], out var n) && n == value)
-            result.Add(new { instruction = i - 1, value });
+    for (int i = 1; i + 3 < ins.Count; i++)
+    {
+        if (ins[i].OpCode.Code == Code.Stfld && IsField(ins[i], "numMenuItems") &&
+            TryInt(ins[i - 1], out var n) && n == value &&
+            ins[i + 1].OpCode.Code == Code.Ldsfld && ins[i + 1].Operand is FieldReference array && array.Name == "MENU_PAUSE_COORDS" &&
+            TryInt(ins[i + 2], out var slot) && slot == 6 &&
+            ins[i + 3].OpCode.Code == Code.Ldelema)
+            result.Add(new { instruction = i - 1, value, pauseArray = array.FullName, coordinateIndex = slot });
+    }
     return result;
 }
 
@@ -156,7 +162,8 @@ static List<object> FindCoordinateIndexWrites(MethodDefinition method, int index
     for (int i = 2; i + 2 < ins.Count; i++)
     {
         if (ins[i].OpCode.Code != Code.Ldelema || ins[i].Operand is not TypeReference t || t.FullName != "Terraria.Location" ||
-            !TryInt(ins[i - 1], out var found) || found != index)
+            !TryInt(ins[i - 1], out var found) || found != index ||
+            ins[i - 2].OpCode.Code != Code.Ldsfld || ins[i - 2].Operand is not FieldReference array || array.Name != "MENU_PAUSE_COORDS")
             continue;
         var fieldStore = ins.Skip(i + 1).Take(4).FirstOrDefault(x => x.OpCode.Code == Code.Stfld && HasFieldName(x, "X"));
         if (fieldStore is not null)
