@@ -94,7 +94,8 @@ var labelCode = new[]
     Instruction.Create(OpCodes.Ldstr, "T360 ModLoader"),
     Instruction.Create(OpCodes.Stelem_Ref)
 };
-foreach (var ins in labelCode) il.InsertBefore(labelAnchor.Next!.Next!.Next!.Next, ins);
+var labelInsertionAnchor = labelAnchor.Next!.Next!.Next!.Next!;
+foreach (var ins in labelCode) il.InsertBefore(labelInsertionAnchor, ins);
 
 // Add the T360 selection branch before the original Exit test. Exit remains byte-for-byte in its original logical path.
 var exitTest = FindUnique(update, i => Is(i, Code.Ldarg_0) && Is(i.Next, Code.Ldfld) &&
