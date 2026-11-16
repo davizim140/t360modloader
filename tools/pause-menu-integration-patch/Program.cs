@@ -34,7 +34,7 @@ var setMenu = ui.Methods.Single(m => m.Name == "SetMenu" && m.Parameters.Count =
     m.Parameters[0].ParameterType.FullName == "Terraria.MenuMode" &&
     m.Parameters[1].ParameterType.MetadataType == MetadataType.Boolean &&
     m.Parameters[2].ParameterType.MetadataType == MetadataType.Boolean);
-var prevMenu = ui.Methods.Single(m => m.Name == "PrevMenu" && m.Parameters.Count == 0);
+var prevMenu = ui.Methods.Single(m => m.Name == "PrevMenu" && m.Parameters.Count == 1 && m.Parameters[0].ParameterType.MetadataType == MetadataType.Int32);
 var back = ui.Methods.Single(m => m.Name == "IsBackButtonTriggered" && m.Parameters.Count == 0);
 var playSound = main.Methods.Single(m => m.Name == "PlaySound" && m.Parameters.Count == 1 &&
     m.Parameters[0].ParameterType.MetadataType == MetadataType.Int32);
@@ -137,6 +137,7 @@ var backCode = new[]
     Instruction.Create(OpCodes.Call, back),
     Instruction.Create(OpCodes.Brfalse_S, skipBack),
     Instruction.Create(OpCodes.Ldarg_0),
+    Instruction.Create(OpCodes.Ldc_I4_M1),
     Instruction.Create(OpCodes.Call, prevMenu),
     skipBack
 };
