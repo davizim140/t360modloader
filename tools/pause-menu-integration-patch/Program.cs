@@ -123,7 +123,7 @@ var t360 = new[]
 foreach (var ins in t360) il.InsertBefore(exitTest, ins);
 
 // STATUS_SCREEN becomes a usable page: B returns to the pause menu.
-var statusTextLoad = FindUnique(update, i => Is(i, Code.Ldfld) && Ref(i, statusText) &&
+var statusTextLoad = update.Body.Instructions.First(i => Is(i, Code.Ldfld) && Ref(i, statusText) &&
     Is(i.Previous, Code.Ldarg_0) && Is(i.Next, Code.Stelem_Ref) &&
     Is(i.Previous?.Previous, Code.Ldc_I4_0));
 var tipsUpdate = FindFirstAfter(statusTextLoad, i => Is(i, Code.Callvirt) &&
