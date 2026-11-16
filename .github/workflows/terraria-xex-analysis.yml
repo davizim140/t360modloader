@@ -265,6 +265,24 @@ jobs:
           test -s research/output/pause-selection-anchor-audit.json
           jq -e '.status == "pause-selection-anchor-audit-pass" and .mode == "read-only-no-patch" and .target.existingExitHandlerPreserved == true and .target.newRelativeIndex5HandlerAlreadyPresent == false and .safety.sourceFileUnchanged == true and .safety.assemblyWritten == false' research/output/pause-selection-anchor-audit.json
 
+      - name: Apply first integrated T360 pause-menu patch to a separate DLL
+        shell: bash
+        run: |
+          dotnet run --project tools/pause-menu-integration-patch/PauseMenuIntegrationPatch.csproj -- \
+            research/output/Terraria.Managed.pausecoords.dll \
+            research/output/Terraria.Managed.t360menu.dll
+          test -s research/output/Terraria.Managed.t360menu.dll
+          test -s research/output/Terraria.Managed.t360menu.dll.patch-report.json
+          jq -e '.status == "pause-menu-integration-copy-patch-pass" and .source.unchanged == true and .validation.controlFlowTargetsValid == true and .safety.originalDllOverwritten == false and .safety.gameXexProduced == false' research/output/Terraria.Managed.t360menu.dll.patch-report.json
+
+      - name: Independently audit integrated T360 menu IL stack depths
+        shell: bash
+        run: |
+          dotnet run --project tools/managed-maxstack-audit/ManagedMaxStackAudit.csproj -- \
+            research/output/Terraria.Managed.t360menu.dll
+          test -s research/output/Terraria.Managed.t360menu.dll.maxstack-audit.json
+          jq -e '.status == "maxstack-audit-pass" and .failureCount == 0 and .methodsAnalyzed > 0' research/output/Terraria.Managed.t360menu.dll.maxstack-audit.json
+
       - name: Independently audit first patched copy stack depths
         shell: bash
         run: |
