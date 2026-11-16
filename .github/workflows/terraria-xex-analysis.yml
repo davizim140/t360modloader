@@ -23,6 +23,8 @@ on:
       - 'tools/pause-label-audit/**'
       - 'tools/pause-selection-audit/**'
       - 'tools/pause-menu-integration-patch/**'
+      - 'tools/xextool-re-page-hash-patch/**'
+      - 'tools/verify_xex_page_hashes.py'
       - 'tools/audit_pause_selection.py'
 
 permissions:
@@ -52,6 +54,9 @@ jobs:
           ref: main
           path: tools/XexTool-RE
 
+      - name: Add T360 page-hash rebuild support to XexTool-RE
+        run: python3 tools/xextool-re-page-hash-patch/apply_patch.py
+
       - name: Build XexTool-RE CLI
         run: make -C tools/XexTool-RE cli
 
@@ -73,6 +78,19 @@ jobs:
           file research/output/game.exe.basefile | tee research/output/file-type.txt
           sha256sum research/output/game.exe.basefile | tee research/output/sha256.txt
           test "$(head -c 2 research/output/game.exe.basefile)" = "MZ"
+
+      - name: Verify original XEX page hashes and no-op rebuild round-trip
+        shell: bash
+        run: |
+          TOOL="$GITHUB_WORKSPACE/tools/XexTool-RE/xextool-re.exe"
+          INPUT="$GITHUB_WORKSPACE/research/input/game.exe.xex"
+          BASE="$GITHUB_WORKSPACE/research/output/game.exe.basefile"
+          "$TOOL" replace-basefile "$INPUT" "$BASE" "$GITHUB_WORKSPACE/research/output/game.exe.pagehash-smoke.xex"
+          "$TOOL" extract "$GITHUB_WORKSPACE/research/output/game.exe.pagehash-smoke.xex" "$GITHUB_WORKSPACE/research/output/game.exe.pagehash-smoke.basefile"
+          python3 tools/verify_xex_page_hashes.py "$INPUT" "$BASE" | tee research/output/source-page-hash-verification.txt
+          python3 tools/verify_xex_page_hashes.py research/output/game.exe.pagehash-smoke.xex research/output/game.exe.pagehash-smoke.basefile | tee research/output/rebuilt-page-hash-verification.txt
+          cmp "$BASE" research/output/game.exe.pagehash-smoke.basefile
+          echo "NO-OP XEX BASEFILE ROUND-TRIP: PASS" | tee research/output/xex-rebuild-smoke.txt
 
       - name: Extract embedded Terraria managed assembly
         shell: bash
