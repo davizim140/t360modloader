@@ -245,7 +245,18 @@ static PauseArrayInspection InspectPauseArray(MethodDefinition cctor, TypeDefini
             TryInt(instructions[i - 1], out var length) &&
             TryStoredLocal(instructions[i + 1], cctor.Body, out var local))
         {
-            var store = instructions.Skip(i + 2).FirstOrDefault(x => x.OpCode.Code == Code.Stsfld && x.Operand is FieldReference f && f.FullName == field.FullName);
+            Instruction? store = null;
+            for (int j = i + 2; j < instructions.Count; j++)
+            {
+                if (instructions[j].OpCode.Code != Code.Stsfld || instructions[j].Operand is not FieldReference candidate)
+                    continue;
+                if (candidate.FieldType is ArrayType candidateArray && candidateArray.ElementType.FullName == "Terraria.Location")
+                {
+                    if (candidate.Name == field.Name && candidate.DeclaringType.FullName == "Terraria.UI")
+                        store = instructions[j];
+                    break;
+                }
+            }
             if (store is not null) matches.Add((length, local, store));
         }
     if (matches.Count != 1)
