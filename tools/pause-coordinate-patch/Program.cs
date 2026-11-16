@@ -38,10 +38,10 @@ var instructions = cctor.Body.Instructions;
 
 var field = ui.Fields.Single(f => f.Name == "MENU_PAUSE_COORDS" && f.FieldType is ArrayType a && a.ElementType.FullName == "Terraria.Location");
 var location = field.FieldType is ArrayType arrayType ? arrayType.ElementType : throw new InvalidOperationException("Pause coordinate field is not an array.");
-var ctorMatches = ui.Methods.Where(m => m.Name == ".ctor" && m.Parameters.Count == 2 &&
+var locationType = assembly.MainModule.Types.Single(t => t.FullName == "Terraria.Location");
+var ctorMatches = locationType.Methods.Where(m => m.Name == ".ctor" && m.Parameters.Count == 2 &&
     m.Parameters[0].ParameterType.MetadataType == MetadataType.Int32 &&
-    m.Parameters[1].ParameterType.MetadataType == MetadataType.Int32 &&
-    m.DeclaringType.FullName == "Terraria.Location").ToArray();
+    m.Parameters[1].ParameterType.MetadataType == MetadataType.Int32).ToArray();
 if (ctorMatches.Length != 1) throw new InvalidOperationException($"Expected one Location(int,int) constructor; found {ctorMatches.Length}.");
 var locationCtor = ctorMatches[0];
 
@@ -52,7 +52,7 @@ for (int i = 1; i < instructions.Count - 1; i++)
         instructions[i].Operand is not TypeReference allocated ||
         allocated.FullName != "Terraria.Location" ||
         !TryInt(instructions[i - 1], out var length) || length != 7 ||
-        !TryStoredLocal(instructions[i + 1], out var local))
+        !TryStoredLocal(instructions[i + 1], cctor.Body, out var local))
         continue;
 
     var store = instructions.Skip(i + 2).TakeWhile(x => x != null)
@@ -64,13 +64,13 @@ if (allocations.Count != 1) throw new InvalidOperationException($"Expected exact
 
 var target = allocations[0];
 var storeIndex = instructions.IndexOf(target.FieldStore);
-if (storeIndex < 1 || !TryLoadedLocal(instructions[storeIndex - 1], out var storedLocal) || storedLocal != target.Local)
+if (storeIndex < 1 || !TryLoadedLocal(instructions[storeIndex - 1], cctor.Body, out var storedLocal) || storedLocal != target.Local)
     throw new InvalidOperationException("Pause array store does not use the allocated local.");
 
 var existing = new List<Coordinate>();
 for (int i = instructions.IndexOf(target.NewArray) + 2; i + 6 < storeIndex; i++)
 {
-    if (!TryLoadedLocal(instructions[i], out var local) || local != target.Local ||
+    if (!TryLoadedLocal(instructions[i], cctor.Body, out var local) || local != target.Local ||
         !TryInt(instructions[i + 1], out var index) ||
         instructions[i + 2].OpCode.Code != Code.Ldelema ||
         instructions[i + 2].Operand is not TypeReference element || element.FullName != "Terraria.Location" ||
@@ -126,7 +126,7 @@ var pass = inputHash == sourceHashAfterWrite &&
     reopened.MainModule.Mvid == beforeMvid &&
     reopenedUi.Methods.Count == beforeMethodCount &&
     verified.Length == 8 &&
-    verified.Coordinates.SequenceEqual(existing.Select(c => new Coordinate(c.Index, c.X, c.Y, null)).Append(new Coordinate(7, newX, newY, null))) &&
+    SameCoordinates(verified.Coordinates, existing.Select(c => new Coordinate(c.Index, c.X, c.Y, null)).Append(new Coordinate(7, newX, newY, null)).ToArray()) &&
     branchAndEhValid;
 
 var report = new
@@ -142,7 +142,7 @@ var report = new
         previousLength = 7,
         newLength = verified.Length,
         addedSlot = new { index = 7, x = newX, y = newY },
-        existingCoordinatesPreserved = verified.Coordinates.Take(7).SequenceEqual(existing.Select(c => new Coordinate(c.Index, c.X, c.Y, null)))
+        existingCoordinatesPreserved = SameCoordinates(verified.Coordinates.Take(7).ToArray(), existing.Select(c => new Coordinate(c.Index, c.X, c.Y, null)).ToArray())
     },
     validation = new
     {
@@ -191,36 +191,44 @@ static bool TryInt(Instruction instruction, out int value)
     return value != int.MinValue;
 }
 
-static bool TryStoredLocal(Instruction instruction, out VariableDefinition? local)
+static bool TryStoredLocal(Instruction instruction, MethodBody body, out VariableDefinition local)
 {
-    local = instruction.OpCode.Code switch
-    {
-        Code.Stloc_0 => instruction.Offset >= 0 ? null : null,
-        _ => null
-    };
-    if (instruction.OpCode.Code is Code.Stloc_0 or Code.Stloc_1 or Code.Stloc_2 or Code.Stloc_3)
-    {
-        local = null;
+    local = null!;
+    if (!TryLocalIndex(instruction, store: true, out var index) || index < 0 || index >= body.Variables.Count)
         return false;
-    }
-    if (instruction.OpCode.Code is Code.Stloc or Code.Stloc_S && instruction.Operand is VariableDefinition variable)
-    {
-        local = variable;
-        return true;
-    }
-    return false;
+    local = body.Variables[index];
+    return true;
 }
 
-static bool TryLoadedLocal(Instruction instruction, out VariableDefinition? local)
+static bool TryLoadedLocal(Instruction instruction, MethodBody body, out VariableDefinition local)
 {
-    local = null;
-    if (instruction.OpCode.Code is Code.Ldloc or Code.Ldloc_S && instruction.Operand is VariableDefinition variable)
-    {
-        local = variable;
-        return true;
-    }
-    return false;
+    local = null!;
+    if (!TryLocalIndex(instruction, store: false, out var index) || index < 0 || index >= body.Variables.Count)
+        return false;
+    local = body.Variables[index];
+    return true;
 }
+
+static bool TryLocalIndex(Instruction instruction, bool store, out int index)
+{
+    index = instruction.OpCode.Code switch
+    {
+        Code.Ldloc_0 or Code.Stloc_0 => 0,
+        Code.Ldloc_1 or Code.Stloc_1 => 1,
+        Code.Ldloc_2 or Code.Stloc_2 => 2,
+        Code.Ldloc_3 or Code.Stloc_3 => 3,
+        Code.Ldloc or Code.Ldloc_S or Code.Stloc or Code.Stloc_S when instruction.Operand is VariableDefinition v => v.Index,
+        _ => -1
+    };
+    var code = instruction.OpCode.Code;
+    return index >= 0 && (store
+        ? code is Code.Stloc_0 or Code.Stloc_1 or Code.Stloc_2 or Code.Stloc_3 or Code.Stloc or Code.Stloc_S
+        : code is Code.Ldloc_0 or Code.Ldloc_1 or Code.Ldloc_2 or Code.Ldloc_3 or Code.Ldloc or Code.Ldloc_S);
+}
+
+static bool SameCoordinates(IReadOnlyList<Coordinate> left, IReadOnlyList<Coordinate> right) =>
+    left.Count == right.Count && left.Zip(right).All(pair =>
+        pair.First.Index == pair.Second.Index && pair.First.X == pair.Second.X && pair.First.Y == pair.Second.Y);
 
 static PauseArrayInspection InspectPauseArray(MethodDefinition cctor, TypeDefinition ui)
 {
@@ -231,8 +239,7 @@ static PauseArrayInspection InspectPauseArray(MethodDefinition cctor, TypeDefini
         if (instructions[i].OpCode.Code == Code.Newarr &&
             instructions[i].Operand is TypeReference t && t.FullName == "Terraria.Location" &&
             TryInt(instructions[i - 1], out var length) &&
-            instructions[i + 1].OpCode.Code is Code.Stloc or Code.Stloc_S &&
-            instructions[i + 1].Operand is VariableDefinition local)
+            TryStoredLocal(instructions[i + 1], cctor.Body, out var local))
         {
             var store = instructions.Skip(i + 2).FirstOrDefault(x => x.OpCode.Code == Code.Stsfld && x.Operand is FieldReference f && f.FullName == field.FullName);
             if (store is not null) matches.Add((length, local, store));
@@ -242,7 +249,7 @@ static PauseArrayInspection InspectPauseArray(MethodDefinition cctor, TypeDefini
     var end = instructions.IndexOf(m.Store);
     var coords = new List<Coordinate>();
     for (int i = 0; i + 6 < end; i++)
-        if (TryLoadedLocal(instructions[i], out var local) && local == m.Local &&
+        if (TryLoadedLocal(instructions[i], cctor.Body, out var local) && local == m.Local &&
             TryInt(instructions[i + 1], out var index) &&
             instructions[i + 2].OpCode.Code == Code.Ldelema &&
             instructions[i + 2].Operand is TypeReference et && et.FullName == "Terraria.Location" &&
@@ -286,6 +293,6 @@ static IEnumerable<TypeDefinition> Flatten(IEnumerable<TypeDefinition> types)
     }
 }
 
-record ArrayTarget(Instruction LengthInstruction, Instruction NewArray, VariableDefinition? Local, Instruction FieldStore);
+record ArrayTarget(Instruction LengthInstruction, Instruction NewArray, VariableDefinition Local, Instruction FieldStore);
 record Coordinate(int Index, int X, int Y, Instruction? Start);
 record PauseArrayInspection(int Length, Coordinate[] Coordinates);
