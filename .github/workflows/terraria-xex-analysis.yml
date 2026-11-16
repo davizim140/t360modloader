@@ -17,6 +17,7 @@ on:
       - 'tools/managed-roundtrip/**'
       - 'tools/managed-maxstack-audit/**'
       - 'tools/pause-menu-target-audit/**'
+      - 'tools/pause-menu-patch-planner/**'
 
 permissions:
   contents: read
@@ -213,6 +214,15 @@ jobs:
             research/output/pause-menu-targets.json
           test -s research/output/pause-menu-targets.json
           jq -e '.status == "pause-menu-targets-found"' research/output/pause-menu-targets.json
+
+      - name: Generate read-only pause-menu patch plan
+        shell: bash
+        run: |
+          dotnet run --project tools/pause-menu-patch-planner/PauseMenuPatchPlanner.csproj -- \
+            research/output/Terraria.Managed.roundtrip.dll \
+            research/output/pause-menu-patch-plan.json
+          test -s research/output/pause-menu-patch-plan.json
+          jq -e '.status == "dry-run-plan-ready" and .mode == "read-only-dry-run" and .output.writesPatchedAssembly == false and .safety.originalAssemblyNotModified == true and .safety.noPatchedDllProduced == true' research/output/pause-menu-patch-plan.json
 
       - name: Install ILSpy command-line decompiler
         run: dotnet tool install ilspycmd --tool-path tools/ilspy --version 11.1.0.9782
