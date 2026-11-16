@@ -259,10 +259,11 @@ jobs:
       - name: Read-only audit of pause selection branch insertion point
         shell: bash
         run: |
-          python3 tools/audit_pause_selection.py research/output/decompiled \
-            --json research/output/pause-selection-anchor-audit.json
+          dotnet run --project tools/pause-selection-audit/PauseSelectionAudit.csproj -- \
+            research/output/Terraria.Managed.pausecoords.dll \
+            research/output/pause-selection-anchor-audit.json
           test -s research/output/pause-selection-anchor-audit.json
-          jq -e '.status == "pause-selection-anchor-audit-pass" and .mode == "read-only-no-patch" and .target.existingExitActionFound == true and .target.newRelativeIndex5HandlerAlreadyPresent == false and .safety.sourceFileUnchanged == true and .safety.assemblyWritten == false' research/output/pause-selection-anchor-audit.json
+          jq -e '.status == "pause-selection-anchor-audit-pass" and .mode == "read-only-no-patch" and .target.existingExitHandlerPreserved == true and .target.newRelativeIndex5HandlerAlreadyPresent == false and .safety.sourceFileUnchanged == true and .safety.assemblyWritten == false' research/output/pause-selection-anchor-audit.json
 
       - name: Independently audit first patched copy stack depths
         shell: bash
