@@ -297,10 +297,6 @@ static IEnumerable<TypeDefinition> Flatten(IEnumerable<TypeDefinition> types)
     }
 }
 
-record ArrayTarget(Instruction LengthInstruction, Instruction NewArray, VariableDefinition Local, Instruction FieldStore);
-record Coordinate(int Index, int X, int Y, Instruction? Start);
-record PauseArrayInspection(int Length, Coordinate[] Coordinates);
-
 static TypeDefinition CreateEnumStub(ModuleDefinition module, string ns, string name)
 {
     var core = new AssemblyNameReference("mscorlib", new Version(2, 0, 5, 0))
@@ -339,3 +335,7 @@ sealed class TargetedAssemblyResolver : DefaultAssemblyResolver
     public override AssemblyDefinition Resolve(AssemblyNameReference name, ReaderParameters parameters)
         => stubs.TryGetValue(name.Name, out var stub) ? stub : base.Resolve(name, parameters);
 }
+
+record ArrayTarget(Instruction LengthInstruction, Instruction NewArray, VariableDefinition Local, Instruction FieldStore);
+record Coordinate(int Index, int X, int Y, Instruction? Start);
+record PauseArrayInspection(int Length, Coordinate[] Coordinates);
