@@ -21,13 +21,23 @@ def block_after(text: str, marker: str) -> tuple[int, str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("source", type=Path)
+    ap.add_argument("source_dir", type=Path)
     ap.add_argument("--json", required=True, type=Path)
     args = ap.parse_args()
-    raw = args.source.read_bytes()
-    text = raw.decode("utf-8")
-    source_hash = hashlib.sha256(raw).hexdigest()
     marker = "else if (this.menuMode == MenuMode.PAUSE)"
+    candidates = []
+    for candidate in args.source_dir.rglob("*.cs"):
+        try:
+            candidate_text = candidate.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        if marker in candidate_text:
+            candidates.append((candidate, candidate_text))
+    if len(candidates) != 1:
+        raise ValueError(f"Expected one decompiled C# file containing pause branch; found {len(candidates)}")
+    source_path, text = candidates[0]
+    raw = source_path.read_bytes()
+    source_hash = hashlib.sha256(raw).hexdigest()
     _, pause = block_after(text, marker)
     exit_marker = "else if (selectedMenu == num2 + 4)"
     exit_pos, exit_block = block_after(pause, exit_marker)
@@ -42,7 +52,7 @@ def main() -> int:
     report = {
       "status": "pause-selection-anchor-audit-pass" if pass_audit else "pause-selection-anchor-audit-fail",
       "mode": "read-only-no-patch",
-      "source": {"file": args.source.name, "sha256": source_hash},
+      "source": {"file": str(source_path), "sha256": source_hash},
       "target": {
         "method": "Terraria.UI::UpdateMenu()",
         "pauseBranchUnique": True,
@@ -53,7 +63,7 @@ def main() -> int:
         "candidateAfterExitBranch": True
       },
       "safety": {
-        "sourceFileUnchanged": hashlib.sha256(args.source.read_bytes()).hexdigest() == source_hash,
+        "sourceFileUnchanged": hashlib.sha256(source_path.read_bytes()).hexdigest() == source_hash,
         "assemblyWritten": False, "xexProduced": False,
         "runtimeXbox360TestPerformed": False
       }
