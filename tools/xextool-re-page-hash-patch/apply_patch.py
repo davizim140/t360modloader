@@ -97,12 +97,14 @@ bool verify_page_hash_chain(const std::vector<uint8_t>& header, uint32_t sec,
 
     # Both conversion paths must rebuild the descriptor chain before signing the header.
     sig = "crypto::devkit_sign(B.hdr, B.data_offset,"
-    if src.count(sig) != 2:
-        raise SystemExit(f"expected two conversion signing points, found {src.count(sig)}")
+    if src.count(sig) != 3:
+        raise SystemExit(f"expected three XEX signing points, found {src.count(sig)}")
+    # The first two are the basefile conversion paths (both have the modified
+    # decompressed image in scope). The third is header-only encryption change.
     src = src.replace(sig, """if (!rebuild_page_hash_chain(B.hdr, B.sec, image,
                                 x.security().image_flags, x.security().page_count))
         return x.raw();
-    crypto::devkit_sign(B.hdr, B.data_offset,\n""")
+    crypto::devkit_sign(B.hdr, B.data_offset,\n""", 2)
 
     # Add public verification API outside the anonymous namespace.
     end_marker = """std::vector<uint8_t> reserialize_with_image(const XexFile& x,
