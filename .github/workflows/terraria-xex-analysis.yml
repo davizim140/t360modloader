@@ -338,7 +338,7 @@ jobs:
         run: |
           python3 tools/inject_managed_assembly.py inject \
             research/output/game.exe.basefile \
-            research/output/Terraria.Managed.t360menu.dll \
+            research/output/Terraria.Managed.mainmenu.dll \
             research/output/game.exe.t360menu.basefile \
             --report research/output/managed-assembly-injection.json
           jq -e '.status == "managed-assembly-injection-pass" and .basefile_size_preserved == true and .source_basefile_overwritten == false and .output_reopened_and_verified == true' research/output/managed-assembly-injection.json
@@ -358,7 +358,7 @@ jobs:
             research/output/game.exe.t360menu.roundtrip.basefile | tee research/output/t360menu-xex-page-hash-verification.txt
           python3 tools/inject_managed_assembly.py verify \
             research/output/game.exe.t360menu.roundtrip.basefile \
-            research/output/Terraria.Managed.t360menu.dll \
+            research/output/Terraria.Managed.mainmenu.dll \
             --report research/output/t360menu-embedded-dll-verification.json
           cmp research/output/game.exe.t360menu.basefile research/output/game.exe.t360menu.roundtrip.basefile
           test "$(sha256sum "$INPUT" | cut -d' ' -f1)" = "fe7dd83fa1518499477cf7faf31c1eb2ad5677d3253b0759e169c82ee3b079b6"
