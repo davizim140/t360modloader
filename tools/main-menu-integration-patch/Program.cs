@@ -40,7 +40,7 @@ var trialCount=FindUnique(update,i=>Is(i,Code.Ldarg_0)&&Is(i.Next,Code.Ldc_I4_7)
 trialCount.Next!.OpCode=OpCodes.Ldc_I4_8;
 
 // Trial coordinate slot 7 is enabled; slot 6 remains the existing Quit coordinate, also enabled.
-var trialCoord6=FindUnique(update,i=>Is(i,Code.Ldsfld)&&Ref(i,coords)&&Is(i.Next,Code.Ldc_I4_6)&&Is(i.Next?.Next,Code.Ldelema));
+var trialCoord6=FindUnique(update,i=>Is(i,Code.Ldsfld)&&Ref(i,coords)&&Is(i.Next,Code.Ldc_I4_6)&&Is(i.Next?.Next,Code.Ldelema)&&Is(i.Next?.Next?.Next,Code.Ldc_I4)&&Int(i.Next!.Next!.Next!)==480);
 var trialCoord7=new[]{Instruction.Create(OpCodes.Ldsfld,coords),Instruction.Create(OpCodes.Ldc_I4_7),Instruction.Create(OpCodes.Ldelema,trialCoord6.Next!.Next!.Operand as TypeReference ?? coords.FieldType.GetElementType()),Instruction.Create(OpCodes.Ldc_I4,480),Instruction.Create(OpCodes.Stfld,trialCoord6.Next!.Next!.Next!.Next!.Operand as FieldReference ?? throw new InvalidOperationException("X field anchor missing"))};
 var xField=(FieldReference)trialCoord6.Next!.Next!.Next!.Next!.Operand!;
 foreach(var x in trialCoord7)il.InsertBefore(trialCount,x);
