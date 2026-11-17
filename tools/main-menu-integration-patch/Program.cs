@@ -7,7 +7,14 @@ if (args.Length != 2) throw new ArgumentException("Usage: MainMenuIntegrationPat
 var input = Path.GetFullPath(args[0]); var output = Path.GetFullPath(args[1]);
 if (!File.Exists(input) || input == output) throw new InvalidOperationException("Input must exist; output must be a separate file.");
 var sourceHash = Hash(input);
-var rp = new ReaderParameters { InMemory=true, ReadSymbols=false, ReadingMode=ReadingMode.Deferred };
+using var netStub = Stub("Microsoft.Xna.Framework.Net", "Microsoft.Xna.Framework.Net", "SendDataOptions");
+using var coreStub = Stub("Microsoft.Xna.Framework", "Microsoft.Xna.Framework.Input", "Buttons");
+using var resolver = new Resolver(new Dictionary<string, AssemblyDefinition>
+{
+    ["Microsoft.Xna.Framework.Net"] = netStub,
+    ["Microsoft.Xna.Framework"] = coreStub
+});
+var rp = new ReaderParameters { InMemory=true, ReadSymbols=false, ReadingMode=ReadingMode.Immediate, AssemblyResolver = resolver };
 using var asm = AssemblyDefinition.ReadAssembly(input,rp);
 var mod=asm.MainModule;
 var ui=mod.Types.Single(t=>t.FullName=="Terraria.UI");
@@ -121,3 +128,21 @@ static Instruction FindFirstAfter(Instruction i,Func<Instruction,bool> p)=>i.Get
 static bool Validate(ModuleDefinition m){foreach(var t in Flat(m.Types))foreach(var x in t.Methods.Where(x=>x.HasBody)){var s=x.Body.Instructions.ToHashSet();foreach(var i in x.Body.Instructions){if(i.Operand is Instruction d&&!s.Contains(d))return false;if(i.Operand is Instruction[] ds&&ds.Any(d=>!s.Contains(d)))return false;}foreach(var h in x.Body.ExceptionHandlers)if((h.TryStart!=null&&!s.Contains(h.TryStart))||(h.TryEnd!=null&&!s.Contains(h.TryEnd))||(h.HandlerStart!=null&&!s.Contains(h.HandlerStart))||(h.HandlerEnd!=null&&!s.Contains(h.HandlerEnd))||(h.FilterStart!=null&&!s.Contains(h.FilterStart)))return false;}return true;}
 static IEnumerable<TypeDefinition> Flat(IEnumerable<TypeDefinition> ts){foreach(var t in ts){yield return t;foreach(var n in Flat(t.NestedTypes))yield return n;}}
 static class Ext{public static IEnumerable<Instruction> GetSelfAndFollowing(this Instruction i){for(var p=i;p!=null;p=p.Next)yield return p;}}
+
+static TypeDefinition EnumStub(ModuleDefinition module, string ns, string name)
+{
+    var core = new AssemblyNameReference("mscorlib", new Version(2,0,5,0)) { PublicKeyToken = Convert.FromHexString("7cec85d7bea7798e") };
+    var e = new TypeDefinition(ns,name,TypeAttributes.Public|TypeAttributes.Sealed|TypeAttributes.AnsiClass|TypeAttributes.BeforeFieldInit,new TypeReference("System","Enum",module,core));
+    e.Fields.Add(new FieldDefinition("value__",FieldAttributes.Public|FieldAttributes.SpecialName|FieldAttributes.RTSpecialName,module.TypeSystem.Int32));
+    return e;
+}
+static AssemblyDefinition Stub(string name,string ns,string type)
+{
+    var an = new AssemblyNameDefinition(name,new Version(4,0,0,0)) { PublicKeyToken = Convert.FromHexString("842cf8be1de50553") };
+    var a = AssemblyDefinition.CreateAssembly(an,name,ModuleKind.Dll); a.MainModule.Types.Add(EnumStub(a.MainModule,ns,type)); return a;
+}
+sealed class Resolver(IReadOnlyDictionary<string,AssemblyDefinition> stubs) : DefaultAssemblyResolver
+{
+    public override AssemblyDefinition Resolve(AssemblyNameReference name) => stubs.TryGetValue(name.Name,out var a) ? a : base.Resolve(name);
+    public override AssemblyDefinition Resolve(AssemblyNameReference name,ReaderParameters parameters) => stubs.TryGetValue(name.Name,out var a) ? a : base.Resolve(name,parameters);
+}
