@@ -7,8 +7,7 @@ if (args.Length != 2) throw new ArgumentException("Usage: MainMenuIntegrationPat
 var input = Path.GetFullPath(args[0]); var output = Path.GetFullPath(args[1]);
 if (!File.Exists(input) || input == output) throw new InvalidOperationException("Input must exist; output must be a separate file.");
 var sourceHash = Hash(input);
-using var resolver = new Resolver();
-var rp = new ReaderParameters { InMemory=true, ReadSymbols=false, ReadingMode=ReadingMode.Immediate, AssemblyResolver=resolver };
+var rp = new ReaderParameters { InMemory=true, ReadSymbols=false, ReadingMode=ReadingMode.Deferred };
 using var asm = AssemblyDefinition.ReadAssembly(input,rp);
 var mod=asm.MainModule;
 var ui=mod.Types.Single(t=>t.FullName=="Terraria.UI");
@@ -121,5 +120,4 @@ static Instruction FindUnique(MethodDefinition m,Func<Instruction,bool> p){var a
 static Instruction FindFirstAfter(Instruction i,Func<Instruction,bool> p)=>i.GetSelfAndFollowing().Skip(1).First(p);
 static bool Validate(ModuleDefinition m){foreach(var t in Flat(m.Types))foreach(var x in t.Methods.Where(x=>x.HasBody)){var s=x.Body.Instructions.ToHashSet();foreach(var i in x.Body.Instructions){if(i.Operand is Instruction d&&!s.Contains(d))return false;if(i.Operand is Instruction[] ds&&ds.Any(d=>!s.Contains(d)))return false;}foreach(var h in x.Body.ExceptionHandlers)if((h.TryStart!=null&&!s.Contains(h.TryStart))||(h.TryEnd!=null&&!s.Contains(h.TryEnd))||(h.HandlerStart!=null&&!s.Contains(h.HandlerStart))||(h.HandlerEnd!=null&&!s.Contains(h.HandlerEnd))||(h.FilterStart!=null&&!s.Contains(h.FilterStart)))return false;}return true;}
 static IEnumerable<TypeDefinition> Flat(IEnumerable<TypeDefinition> ts){foreach(var t in ts){yield return t;foreach(var n in Flat(t.NestedTypes))yield return n;}}
-sealed class Resolver:DefaultAssemblyResolver{}
 static class Ext{public static IEnumerable<Instruction> GetSelfAndFollowing(this Instruction i){for(var p=i;p!=null;p=p.Next)yield return p;}}
