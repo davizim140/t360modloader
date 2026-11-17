@@ -53,9 +53,9 @@ var fullQuitStelem=FindFirstAfter(fullQuitLabel,i=>Is(i,Code.Stelem_Ref));
 var replaceLang=fullQuitLabel.Next!.Next!.Next!.Next!;
 if(!Is(replaceLang,Code.Ldc_I4_S)||Int(replaceLang)!=15)throw new InvalidOperationException("Full-game Quit label anchor changed.");
 // Replace Lang.menu[15] with literal T360 label.
-var afterLang=replaceLang.Next!.Next!;
+var langElementLoad=replaceLang.Next ?? throw new InvalidOperationException("Missing Lang.menu element load.");
 il.Replace(fullQuitLabel.Next!.Next!.Next!,Instruction.Create(OpCodes.Ldstr,"T360 ModLoader"));
-il.Remove(replaceLang); il.Remove(replaceLang.Next!);
+il.Remove(replaceLang); il.Remove(langElementLoad);
 var fullInsert=new[]{Instruction.Create(OpCodes.Ldarg_0),Instruction.Create(OpCodes.Ldfld,menuString),Instruction.Create(OpCodes.Ldc_I4_6),
  Instruction.Create(OpCodes.Ldsfld,mod.Types.Single(t=>t.FullName=="Terraria.Lang").Fields.Single(f=>f.Name=="menu")),
  Instruction.Create(OpCodes.Ldc_I4_S,(sbyte)15),Instruction.Create(OpCodes.Ldelem_Ref),Instruction.Create(OpCodes.Stelem_Ref)};
