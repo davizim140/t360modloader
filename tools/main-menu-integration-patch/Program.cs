@@ -75,25 +75,21 @@ var selectionEnd=FindUnique(update,i=>Is(i,Code.Ldarg_0)&&Is(i.Next,Code.Ldc_I4)
  i.Next.Next.Operand is MethodReference mr&&mr.Name=="IsButtonTriggered");
 var skip=Instruction.Create(OpCodes.Nop);
 var fullPath=Instruction.Create(OpCodes.Nop);
-var t360Code=new[]{
- Instruction.Create(OpCodes.Ldc_I4_S,(sbyte)10),Instruction.Create(OpCodes.Call,play),
+var commonT360=Instruction.Create(OpCodes.Ldc_I4_S,(sbyte)10);
+var handler=new[]{
+ Instruction.Create(OpCodes.Ldsfld,isTrial),Instruction.Create(OpCodes.Brfalse,fullPath),
+ Instruction.Create(OpCodes.Ldarg_0),Instruction.Create(OpCodes.Ldfld,Field(ui,"selectedMenu")),Instruction.Create(OpCodes.Ldc_I4_6),
+ Instruction.Create(OpCodes.Bne_Un,selected5),Instruction.Create(OpCodes.Br,commonT360),
+ fullPath,
+ Instruction.Create(OpCodes.Ldarg_0),Instruction.Create(OpCodes.Ldfld,Field(ui,"selectedMenu")),Instruction.Create(OpCodes.Ldc_I4_5),
+ Instruction.Create(OpCodes.Bne_Un,selected5),
+ commonT360,Instruction.Create(OpCodes.Call,play),
  Instruction.Create(OpCodes.Ldarg_0),Instruction.Create(OpCodes.Ldc_I4,status),Instruction.Create(OpCodes.Ldc_I4_1),Instruction.Create(OpCodes.Ldc_I4_0),
  Instruction.Create(OpCodes.Call,setMenu),Instruction.Create(OpCodes.Ldarg_0),
  Instruction.Create(OpCodes.Ldstr,"T360 ModLoader\\nGerenciador carregado.\\nB: Voltar"),Instruction.Create(OpCodes.Stfld,statusText),
  Instruction.Create(OpCodes.Br,selectionEnd)};
-var handler=new[]{
- Instruction.Create(OpCodes.Ldsfld,isTrial),Instruction.Create(OpCodes.Brfalse,fullPath),
- Instruction.Create(OpCodes.Ldarg_0),Instruction.Create(OpCodes.Ldfld,Field(ui,"selectedMenu")),Instruction.Create(OpCodes.Ldc_I4_6),
- Instruction.Create(OpCodes.Bne_Un,fullPath)};
-foreach(var x in t360Code)il.InsertBefore(selected5,x);
 foreach(var x in handler)il.InsertBefore(selected5,x);
-il.InsertBefore(selected5,Instruction.Create(OpCodes.Br,selectionEnd));
-il.InsertBefore(selected5,fullPath);
-var fullHandler=new[]{
- Instruction.Create(OpCodes.Ldarg_0),Instruction.Create(OpCodes.Ldfld,Field(ui,"selectedMenu")),Instruction.Create(OpCodes.Ldc_I4_5),
- Instruction.Create(OpCodes.Bne_Un,selected5)};
-foreach(var x in fullHandler)il.InsertBefore(selected5,x);
-foreach(var x in t360Code)il.InsertBefore(selected5,Instruction.Create(x.OpCode,x.Operand));
+
 // Trial Quit moved to index 7; retain Full-game Quit at index 6.
 var trialQuitHandler=new[]{
  Instruction.Create(OpCodes.Ldsfld,isTrial),Instruction.Create(OpCodes.Brfalse,selectionEnd),
