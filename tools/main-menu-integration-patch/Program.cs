@@ -71,8 +71,9 @@ il.Replace(hidden6.Next!.Next!.Next!,Instruction.Create(OpCodes.Ldc_I4,480));
 // T360 click handler: full game index 5, Trial index 6. Intercepts before the original Marketplace/Quit branch.
 var selected5=FindUnique(update,i=>Is(i,Code.Ldarg_0)&&Is(i.Next,Code.Ldfld)&&RefName(i.Next,"selectedMenu")&&
  Is(i.Next?.Next,Code.Ldc_I4_5)&&Is(i.Next?.Next?.Next,Code.Bne_Un_S));
-var selectionEnd=FindUnique(update,i=>Is(i,Code.Ldarg_0)&&Is(i.Next,Code.Ldc_I4)&&Int(i.Next!)==16384&&Is(i.Next?.Next,Code.Call)&&
- i.Next.Next.Operand is MethodReference mr&&mr.Name=="IsButtonTriggered");
+var originalSelected6=FindFirstAfter(selected5,i=>Is(i,Code.Ldarg_0)&&Is(i.Next,Code.Ldfld)&&RefName(i.Next,"selectedMenu")&&
+ Is(i.Next?.Next,Code.Ldc_I4_6)&&Is(i.Next?.Next?.Next,Code.Bne_Un_S));
+var selectionEnd=(Instruction)originalSelected6.Next!.Next!.Next!.Operand!;
 var skip=Instruction.Create(OpCodes.Nop);
 var fullPath=Instruction.Create(OpCodes.Nop);
 var commonT360=Instruction.Create(OpCodes.Ldc_I4_S,(sbyte)10);
