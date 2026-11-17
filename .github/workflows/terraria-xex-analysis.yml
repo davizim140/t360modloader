@@ -24,6 +24,7 @@ on:
       - 'tools/pause-selection-audit/**'
       - 'tools/pause-menu-integration-patch/**'
       - 'tools/main-menu-audit/**'
+      - 'tools/main-menu-integration-patch/**'
       - 'tools/xextool-re-page-hash-patch/**'
       - 'tools/verify_xex_page_hashes.py'
       - 'tools/inject_managed_assembly.py'
@@ -313,6 +314,24 @@ jobs:
             research/output/Terraria.Managed.t360menu.dll
           test -s research/output/Terraria.Managed.t360menu.dll.maxstack-audit.json
           jq -e '.status == "maxstack-audit-pass" and .failureCount == 0 and .methodsAnalyzed > 0' research/output/Terraria.Managed.t360menu.dll.maxstack-audit.json
+
+      - name: Patch title main menu in a separate managed DLL
+        shell: bash
+        run: |
+          dotnet run --project tools/main-menu-integration-patch/MainMenuIntegrationPatch.csproj -- \
+            research/output/Terraria.Managed.t360menu.dll \
+            research/output/Terraria.Managed.mainmenu.dll
+          test -s research/output/Terraria.Managed.mainmenu.dll
+          test -s research/output/Terraria.Managed.mainmenu.dll.patch-report.json
+          jq -e '.status == "main-menu-integration-copy-patch-pass" and .sourceUnchanged == true and .validation.controlFlowTargetsValid == true and .safety.originalDllOverwritten == false and .safety.xexProducedByPatchStep == false' research/output/Terraria.Managed.mainmenu.dll.patch-report.json
+
+      - name: Independently audit main-menu patched IL stack depths
+        shell: bash
+        run: |
+          dotnet run --project tools/managed-maxstack-audit/ManagedMaxStackAudit.csproj -- \
+            research/output/Terraria.Managed.mainmenu.dll
+          test -s research/output/Terraria.Managed.mainmenu.dll.maxstack-audit.json
+          jq -e '.status == "maxstack-audit-pass" and .failureCount == 0 and .methodsAnalyzed > 0' research/output/Terraria.Managed.mainmenu.dll.maxstack-audit.json
 
       - name: Inject patched managed assembly into a separate Terraria basefile
         shell: bash
