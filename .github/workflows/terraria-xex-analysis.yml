@@ -23,6 +23,7 @@ on:
       - 'tools/pause-label-audit/**'
       - 'tools/pause-selection-audit/**'
       - 'tools/pause-menu-integration-patch/**'
+      - 'tools/main-menu-audit/**'
       - 'tools/xextool-re-page-hash-patch/**'
       - 'tools/verify_xex_page_hashes.py'
       - 'tools/inject_managed_assembly.py'
@@ -285,6 +286,15 @@ jobs:
             research/output/pause-selection-anchor-audit.json
           test -s research/output/pause-selection-anchor-audit.json
           jq -e '.status == "pause-selection-anchor-audit-pass" and .mode == "read-only-no-patch" and .target.existingExitHandlerPreserved == true and .target.newRelativeIndex5HandlerAlreadyPresent == false and .safety.sourceFileUnchanged == true and .safety.assemblyWritten == false' research/output/pause-selection-anchor-audit.json
+
+      - name: Audit main-menu insertion points without modifying the assembly
+        shell: bash
+        run: |
+          dotnet run --project tools/main-menu-audit/MainMenuAudit.csproj -- \
+            research/output/Terraria.Managed.pausecoords.dll \
+            research/output/main-menu-il-audit.json
+          test -s research/output/main-menu-il-audit.json
+          jq -e '.status == "main-menu-il-audit-pass" and .sourceSha256Before == .sourceSha256After and (.relevantUpdateMenuInstructionWindows | length) > 0' research/output/main-menu-il-audit.json
 
       - name: Apply first integrated T360 pause-menu patch to a separate DLL
         shell: bash
