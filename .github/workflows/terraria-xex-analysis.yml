@@ -304,7 +304,7 @@ jobs:
             research/output/Terraria.Managed.t360menu.dll
           test -s research/output/Terraria.Managed.t360menu.dll
           test -s research/output/Terraria.Managed.t360menu.dll.patch-report.json
-          jq -e '.status == "pause-menu-integration-copy-patch-pass" and .source.unchanged == true and .validation.controlFlowTargetsValid == true and .safety.originalDllOverwritten == false and .safety.gameXexProduced == false' research/output/Terraria.Managed.t360menu.dll.patch-report.json
+          jq -e '.status == "pause-menu-integration-copy-patch-pass" and .source.unchanged == true and .validation.controlFlowTargetsValid == true and .safety.originalDllOverwritten == false and .safety.gameXexProducedByThisPatchStep == false' research/output/Terraria.Managed.t360menu.dll.patch-report.json
 
       - name: Independently audit integrated T360 menu IL stack depths
         shell: bash
