@@ -127,7 +127,6 @@ static Instruction FindUnique(MethodDefinition m,Func<Instruction,bool> p){var a
 static Instruction FindFirstAfter(Instruction i,Func<Instruction,bool> p)=>i.GetSelfAndFollowing().Skip(1).First(p);
 static bool Validate(ModuleDefinition m){foreach(var t in Flat(m.Types))foreach(var x in t.Methods.Where(x=>x.HasBody)){var s=x.Body.Instructions.ToHashSet();foreach(var i in x.Body.Instructions){if(i.Operand is Instruction d&&!s.Contains(d))return false;if(i.Operand is Instruction[] ds&&ds.Any(d=>!s.Contains(d)))return false;}foreach(var h in x.Body.ExceptionHandlers)if((h.TryStart!=null&&!s.Contains(h.TryStart))||(h.TryEnd!=null&&!s.Contains(h.TryEnd))||(h.HandlerStart!=null&&!s.Contains(h.HandlerStart))||(h.HandlerEnd!=null&&!s.Contains(h.HandlerEnd))||(h.FilterStart!=null&&!s.Contains(h.FilterStart)))return false;}return true;}
 static IEnumerable<TypeDefinition> Flat(IEnumerable<TypeDefinition> ts){foreach(var t in ts){yield return t;foreach(var n in Flat(t.NestedTypes))yield return n;}}
-static class Ext{public static IEnumerable<Instruction> GetSelfAndFollowing(this Instruction i){for(var p=i;p!=null;p=p.Next)yield return p;}}
 
 static TypeDefinition EnumStub(ModuleDefinition module, string ns, string name)
 {
@@ -146,3 +145,5 @@ sealed class Resolver(IReadOnlyDictionary<string,AssemblyDefinition> stubs) : De
     public override AssemblyDefinition Resolve(AssemblyNameReference name) => stubs.TryGetValue(name.Name,out var a) ? a : base.Resolve(name);
     public override AssemblyDefinition Resolve(AssemblyNameReference name,ReaderParameters parameters) => stubs.TryGetValue(name.Name,out var a) ? a : base.Resolve(name,parameters);
 }
+
+static class Ext{public static IEnumerable<Instruction> GetSelfAndFollowing(this Instruction i){for(var p=i;p!=null;p=p.Next)yield return p;}}
