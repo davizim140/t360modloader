@@ -1,0 +1,57 @@
+name: Extract Terraria XBLA
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "input/Terraria.xbla"
+
+permissions:
+  contents: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check input package
+        run: |
+          test -s input/Terraria.xbla
+          file input/Terraria.xbla
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("input/Terraria.xbla")
+          magic = p.read_bytes()[:4]
+          if magic not in (b"LIVE", b"PIRS", b"CON "):
+              raise SystemExit(f"Invalid STFS magic: {magic!r}")
+          print(f"STFS package detected: {magic.decode('ascii', errors='replace')}")
+          PY
+
+      - name: Build x360-rs STFS extractor
+        run: |
+          git clone --depth 1 https://github.com/D221/x360-rs.git /tmp/x360-rs
+          cd /tmp/x360-rs
+          cargo build --release
+
+      - name: Verify and extract package
+        run: |
+          mkdir -p extracted
+          /tmp/x360-rs/target/release/x360-rs "$GITHUB_WORKSPACE/input/Terraria.xbla" --verify --extract "$GITHUB_WORKSPACE/extracted"
+
+      - name: Check extracted game files
+        run: |
+          find extracted -type f -printf '%P\t%s bytes\n' | sort | tee extracted-manifest.txt
+          test -n "$(find extracted -type f -name default.xex -print -quit)"
+          test -n "$(find extracted -type f -name game.exe.xex -print -quit)"
+
+      - name: Upload extracted Terraria files
+        uses: actions/upload-artifact@v4
+        with:
+          name: Terraria-XBLA-Extracted
+          path: |
+            extracted/
+            extracted-manifest.txt
+          if-no-files-found: error
+          compression-level: 1
