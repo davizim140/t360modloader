@@ -400,15 +400,6 @@ jobs:
           test -s research/output/storage-api-audit.json
           jq -e '.status == "storage-api-audit-pass-with-blocker" and .checks.blocking_open_helper_detected == true and .checks.callback_driven_container_open_not_yet_proven == false and .safety.gameAssemblyModified == false and .safety.xexProduced == false' research/output/storage-api-audit.json
 
-      - name: Audit asynchronous storage callback signature
-        shell: bash
-        run: |
-          python3 tools/audit_async_storage_signature.py research/output/Terraria-UI.il \
-            --json research/output/async-storage-signature-audit.json \
-            --markdown research/output/async-storage-signature-audit.md
-          test -s research/output/async-storage-signature-audit.json
-          jq -e '.status == "async-storage-signature-audit-pass" and .checks.begin_open_container_accepts_async_callback == true and .checks.matching_end_open_container_exists == true and .safety.game_assembly_modified == false' research/output/async-storage-signature-audit.json
-
       - name: Inventory Terraria controller bindings
         shell: bash
         run: |
@@ -446,6 +437,15 @@ jobs:
           python3 tools/report_ui_raw_il.py research/output/Terraria-UI.il \
             --json research/output/ui-raw-il.json \
             --markdown research/output/ui-raw-il.md
+
+      - name: Audit asynchronous storage callback signature
+        shell: bash
+        run: |
+          python3 tools/audit_async_storage_signature.py research/output/Terraria-UI.il \
+            --json research/output/async-storage-signature-audit.json \
+            --markdown research/output/async-storage-signature-audit.md
+          test -s research/output/async-storage-signature-audit.json
+          jq -e '.status == "async-storage-signature-audit-pass" and .checks.begin_open_container_accepts_async_callback == true and .checks.matching_end_open_container_exists == true and .safety.game_assembly_modified == false' research/output/async-storage-signature-audit.json
 
       - name: Audit exact pause menu IL branches
         shell: bash
