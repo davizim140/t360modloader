@@ -93,7 +93,7 @@ var handler=new[]{
  commonT360,Instruction.Create(OpCodes.Call,play),
  Instruction.Create(OpCodes.Ldarg_0),Instruction.Create(OpCodes.Ldc_I4,status),Instruction.Create(OpCodes.Ldc_I4_1),Instruction.Create(OpCodes.Ldc_I4_0),
  Instruction.Create(OpCodes.Call,setMenu),Instruction.Create(OpCodes.Ldarg_0),
- Instruction.Create(OpCodes.Ldstr,"T360 ModLoader\\nGerenciador carregado.\\nB: Voltar"),Instruction.Create(OpCodes.Stfld,statusText),
+ Instruction.Create(OpCodes.Ldstr,"T360 ModLoader\\nInterface integrada ao Terraria.\\nMods: carregamento em desenvolvimento\\nB: Voltar"),Instruction.Create(OpCodes.Stfld,statusText),
  Instruction.Create(OpCodes.Br,selectionEnd)};
 foreach(var x in handler)il.InsertBefore(selected5,x);
 
