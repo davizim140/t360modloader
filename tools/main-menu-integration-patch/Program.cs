@@ -37,8 +37,9 @@ var ins=update.Body.Instructions;
 // to the title menu instead of leaving the player trapped on the generic status screen.
 var statusBranch=FindUnique(update,i=>Is(i,Code.Ldarg_0)&&Is(i.Next,Code.Ldfld)&&RefName(i.Next,"menuMode")&&
     Int(i.Next!.Next!)==status&&i.Next!.Next!.Next!.OpCode.FlowControl==FlowControl.Cond_Branch);
-var statusTipsUpdate=FindFirstAfter(statusBranch,i=>i.OpCode.Code==Code.Callvirt&&i.Operand is MethodReference mr&&
-    mr.Name=="Update"&&mr.DeclaringType.FullName=="Terraria.Tips");
+// Insert at the beginning of the STATUS_SCREEN branch. This version's
+// status-screen body does not call Terraria.Tips.Update.
+var statusScreenBody=statusBranch.Next!.Next!.Next!;
 var statusBackSkip=Instruction.Create(OpCodes.Nop);
 var statusBackHandler=new[]{
     Instruction.Create(OpCodes.Ldarg_0),Instruction.Create(OpCodes.Call,backCheck),
@@ -46,7 +47,7 @@ var statusBackHandler=new[]{
     Instruction.Create(OpCodes.Ldc_I4_0),Instruction.Create(OpCodes.Ldc_I4_1),
     Instruction.Create(OpCodes.Ldc_I4_0),Instruction.Create(OpCodes.Call,setMenu),statusBackSkip
 };
-var statusBackAnchor=statusTipsUpdate;
+var statusBackAnchor=statusScreenBody.Previous!;
 foreach(var x in statusBackHandler){il.InsertAfter(statusBackAnchor,x);statusBackAnchor=x;}
 
 // Trial: move Quit label from slot 6 to 7, insert T360 at 6.
