@@ -39,7 +39,7 @@ var statusBranch=FindUnique(update,i=>Is(i,Code.Ldarg_0)&&Is(i.Next,Code.Ldfld)&
     Int(i.Next!.Next!)==status&&i.Next!.Next!.Next!.OpCode.FlowControl==FlowControl.Cond_Branch);
 // Insert at the beginning of the STATUS_SCREEN branch. This version's
 // status-screen body does not call Terraria.Tips.Update.
-var statusScreenBody=statusBranch.Next!.Next!.Next!;
+var statusScreenBody=statusBranch.Next!.Next!.Next!.Next!;
 var statusBackSkip=Instruction.Create(OpCodes.Nop);
 var statusBackHandler=new[]{
     Instruction.Create(OpCodes.Ldarg_0),Instruction.Create(OpCodes.Call,backCheck),
