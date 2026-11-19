@@ -28,8 +28,25 @@ var isTrial=Field(main,"isTrial");
 var setMenu=ui.Methods.Single(m=>m.Name=="SetMenu"&&m.Parameters.Count==3);
 var play=main.Methods.Single(m=>m.Name=="PlaySound"&&m.Parameters.Count==1);
 var status=Convert.ToInt32(mod.Types.Single(t=>t.FullName=="Terraria.MenuMode").Fields.Single(f=>f.Name=="STATUS_SCREEN").Constant);
+var backCheck=ui.Methods.Single(m=>m.Name=="IsBackButtonTriggered"&&m.Parameters.Count==0);
+var prevMenu=ui.Methods.Single(m=>m.Name=="PrevMenu"&&m.Parameters.Count==0);
 var quit=Convert.ToInt32(mod.Types.Single(t=>t.FullName=="Terraria.MenuMode").Fields.Single(f=>f.Name=="QUIT").Constant);
 var ins=update.Body.Instructions;
+
+// STATUS_SCREEN is the in-game T360 landing page. Make its B/back action return
+// to the title menu instead of leaving the player trapped on the generic status screen.
+var statusBranch=FindUnique(update,i=>Is(i,Code.Ldarg_0)&&Is(i.Next,Code.Ldfld)&&RefName(i.Next,"menuMode")&&
+    Int(i.Next!.Next!)==status&&i.Next!.Next!.Next!.OpCode.FlowControl==FlowControl.Cond_Branch);
+var statusTipsUpdate=FindFirstAfter(statusBranch,i=>i.OpCode.Code==Code.Callvirt&&i.Operand is MethodReference mr&&
+    mr.Name=="Update"&&mr.DeclaringType.FullName=="Terraria.Tips");
+var statusBackSkip=Instruction.Create(OpCodes.Nop);
+var statusBackHandler=new[]{
+    Instruction.Create(OpCodes.Ldarg_0),Instruction.Create(OpCodes.Call,backCheck),
+    Instruction.Create(OpCodes.Brfalse,statusBackSkip),Instruction.Create(OpCodes.Ldarg_0),
+    Instruction.Create(OpCodes.Call,prevMenu),statusBackSkip
+};
+var statusBackAnchor=statusTipsUpdate;
+foreach(var x in statusBackHandler){il.InsertAfter(statusBackAnchor,x);statusBackAnchor=x;}
 
 // Trial: move Quit label from slot 6 to 7, insert T360 at 6.
 var trialQuitLabel=FindUnique(update,i=>Is(i,Code.Ldarg_0)&&Is(i.Next,Code.Ldfld)&&Ref(i.Next,menuString)&&Is(i.Next?.Next,Code.Ldc_I4_6)&&
@@ -113,7 +130,9 @@ var valid=Validate(mod);
 var pass=sourceHash==Hash(input)&&File.Exists(output)&&beforeMvid==mod.Mvid&&valid&&
  checkedUpdate.Body.Instructions.Any(i=>Is(i,Code.Ldstr)&&Equals(i.Operand,"T360 ModLoader"))&&
  checkedUpdate.Body.Instructions.Any(i=>Is(i,Code.Ldc_I4_8))&&checkedUpdate.Body.Instructions.Any(i=>Is(i,Code.Ldstr)&&Equals(i.Operand,"T360 ModLoader\\nInterface integrada ao Terraria.\\nMods: carregamento em desenvolvimento\\nB: Voltar"));
-var report=new{status=pass?"main-menu-integration-copy-patch-pass":"main-menu-integration-copy-patch-fail",mode="separate-copy-only",sourceSha256=sourceHash,sourceUnchanged=sourceHash==Hash(input),outputSha256=Hash(output),changes=new[]{"Full game: T360 at index 5; Quit at index 6; count 7","Trial: Marketplace at 5; T360 at 6; Quit at 7; count 8","T360 selection routes to STATUS_SCREEN landing page with explicit not-yet-loaded status","Trial Quit selection moved to index 7","Title coordinate slots 6/7 enabled as required"},validation=new{controlFlowTargetsValid=valid,assemblyWritten=File.Exists(output),verificationMethod="in-memory Mono.Cecil validation; avoids unavailable Xbox framework resolution",moduleIdentityPreserved=beforeMvid==mod.Mvid},safety=new{originalDllOverwritten=false,xexProducedByPatchStep=false,xboxRuntimeTested=false,signatureNotAddressed=true}};
+var statusBackWired=checkedUpdate.Body.Instructions.Any(i=>i.OpCode.Code==Code.Call&&i.Operand is MethodReference mr&&mr.Name=="IsBackButtonTriggered")&&checkedUpdate.Body.Instructions.Any(i=>i.OpCode.Code==Code.Call&&i.Operand is MethodReference mr&&mr.Name=="PrevMenu");
+pass=pass&&statusBackWired;
+var report=new{status=pass?"main-menu-integration-copy-patch-pass":"main-menu-integration-copy-patch-fail",mode="separate-copy-only",sourceSha256=sourceHash,sourceUnchanged=sourceHash==Hash(input),outputSha256=Hash(output),changes=new[]{"Full game: T360 at index 5; Quit at index 6; count 7","Trial: Marketplace at 5; T360 at 6; Quit at 7; count 8","T360 selection routes to STATUS_SCREEN landing page with explicit not-yet-loaded status","Trial Quit selection moved to index 7","Title coordinate slots 6/7 enabled as required"},validation=new{controlFlowTargetsValid=valid,statusScreenBackHandler=statusBackWired,assemblyWritten=File.Exists(output),verificationMethod="in-memory Mono.Cecil validation; avoids unavailable Xbox framework resolution",moduleIdentityPreserved=beforeMvid==mod.Mvid},safety=new{originalDllOverwritten=false,xexProducedByPatchStep=false,xboxRuntimeTested=false,signatureNotAddressed=true}};
 File.WriteAllText(output+".patch-report.json",JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
 Console.WriteLine($"T360 main menu patch: {report.status}; control flow={valid}");
 return pass?0:1;
