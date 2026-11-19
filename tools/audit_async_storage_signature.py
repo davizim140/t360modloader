@@ -15,12 +15,22 @@ def main() -> int:
     ap.add_argument("--markdown", required=True, type=Path)
     a = ap.parse_args()
     text = a.il.read_text(encoding="utf-8", errors="replace")
+    begin_at = text.find(BEGIN)
+    begin_context = text[max(0, begin_at - 500):begin_at] if begin_at >= 0 else ""
+    end_context = text[begin_at:begin_at + 900] if begin_at >= 0 else ""
+    # ILSpy emits null delegate/state as two ldnull instructions, then WaitOne
+    # after BeginOpenContainer. Do not depend on C# source-style "(AsyncCallback)null".
+    stock_sync_pattern = (
+        begin_at >= 0
+        and begin_context.count("ldnull") >= 2
+        and "WaitOne" in end_context
+    )
     checks = {
         "begin_open_container_accepts_async_callback": BEGIN in text,
         "begin_open_container_accepts_async_state": BEGIN in text and "System.AsyncCallback, object)" in BEGIN,
         "matching_end_open_container_exists": END in text,
         "async_callback_delegate_constructor_present": CALLBACK in text,
-        "stock_open_helper_does_not_prove_nonblocking_use": "(AsyncCallback)null" in text,
+        "stock_open_helper_uses_null_callback_and_waits": stock_sync_pattern,
     }
     safe = all(checks.values())
     report = {
@@ -29,7 +39,7 @@ def main() -> int:
         "checks": checks,
         "conclusion": (
             "The managed API exposes BeginOpenContainer(name, callback, state) and the matching "
-            "EndOpenContainer(IAsyncResult). The existing helper passes a null callback and waits; "
+            "EndOpenContainer(IAsyncResult). The existing helper passes null callback/state and waits; "
             "a new callback-driven flow is technically expressible, but this audit does not implement "
             "it or prove Xbox runtime behavior."
         ),
