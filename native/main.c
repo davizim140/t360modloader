@@ -662,10 +662,20 @@ static void select_device(int direction)
 
 static bool storage_enter_directory(void)
 {
-    if (storage_selected >= storage_count || !storage_entries[storage_selected].is_directory) return false;
+    if (storage_selected >= storage_count || !storage_entries[storage_selected].is_directory)
+        return false;
+
     size_t used = strlen(storage_path);
-    int n = snprintf(storage_path + used, sizeof(storage_path) - used, "%s\\", storage_entries[storage_selected].name);
-    if (n <= 0 || (size_t)n >= sizeof(storage_path) - used) return false;
+    if (used >= sizeof(storage_path) - 1)
+        return false;
+
+    const char *separator = (used > 0 &&
+        storage_path[used - 1] != '\\' && storage_path[used - 1] != '/') ? "\\" : "";
+    int n = snprintf(storage_path + used, sizeof(storage_path) - used, "%s%s\\",
+        separator, storage_entries[storage_selected].name);
+    if (n <= 0 || (size_t)n >= sizeof(storage_path) - used)
+        return false;
+
     load_current_device();
     return true;
 }
