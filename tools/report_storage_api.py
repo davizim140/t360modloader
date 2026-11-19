@@ -33,7 +33,7 @@ def main() -> int:
     checks["all_required_storage_evidence_found"] = all(v for k,v in checks.items() if k not in ("sync_wait_in_existing_open_helper", "callback_driven_container_open_not_yet_proven"))
     checks["blocking_open_helper_detected"] = checks["sync_wait_in_existing_open_helper"]
     report = {
-        "status": "storage-api-audit-pass" if checks["all_required_storage_evidence_found"] else "storage-api-audit-fail",
+        "status": "storage-api-audit-pass-with-blocker" if checks["all_required_storage_evidence_found"] and checks["blocking_open_helper_detected"] and not checks["callback_driven_container_open_not_yet_proven"] else ("storage-api-audit-pass" if checks["all_required_storage_evidence_found"] else "storage-api-audit-fail"),
         "mode": "read-only-source-audit",
         "checks": checks,
         "implementation_constraints": [
@@ -57,7 +57,7 @@ def main() -> int:
     lines += ["", "## Implementation constraints", ""] + [f"- {x}" for x in report["implementation_constraints"]]
     lines += ["", "No game files were changed and no XEX was produced."]
     a.markdown.parent.mkdir(parents=True, exist_ok=True)
-    a.markdown.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+    a.markdown.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(report["status"])
     return 0 if report["status"] == "storage-api-audit-pass" else 1
 
