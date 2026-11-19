@@ -1,6 +1,6 @@
 # T360 ModLoader
 
-Projeto comunitário para desenvolver um gerenciador nativo de mods para Terraria no Xbox 360 RGH.
+Projeto comunitário para integrar o T360 ModLoader diretamente à interface do Terraria Xbox 360 no console RGH. O objetivo é não exigir um gerenciador externo.
 
 ## Sites
 
@@ -14,15 +14,17 @@ Projeto comunitário para desenvolver um gerenciador nativo de mods para Terrari
 - Catálogo comunitário: `community/mods.json`; apenas itens com `approved: true` aparecem.
 - Formato inicial de pacote: [docs/TMOD_FORMAT.md](docs/TMOD_FORMAT.md).
 - Validador e testes automatizados: `tools/` e `tests/`.
-- **Gerenciador nativo XEX:** primeira compilação concluída com xsdk no GitHub Actions, na [execução #3](https://github.com/davizim140/t360modloader/actions/runs/42874416867).
+- **Integração no menu principal:** patch separado do assembly gerenciado adiciona a entrada T360 ModLoader ao menu do Terraria; a tela de destino ainda é uma página inicial experimental.
 - **Teste em Xbox 360 RGH:** o usuário confirmou que o XEX abriu e que D-pad, A, B e BACK funcionaram. Isso valida somente a interface e a navegação.
-- **Explorador de armazenamento:** o código atual lista entradas de USB, HD interno e pasta do jogo, em modo somente leitura. Ainda não permite entrar em subpastas; essa é a próxima etapa de desenvolvimento.
-- **Ainda não implementado:** instalação de pacotes, integração com os arquivos do Terraria e carregamento/ativação de mods no jogo.
+- **Direção definida:** navegação, lista de mods e controles do T360 devem aparecer dentro do próprio Terraria. O XEX nativo separado não será a interface final do usuário.
+- **Ainda não implementado:** tela interna completa, leitura de pacotes dentro do jogo, instalação e carregamento/ativação real de mods.
 - Terraria ainda precisa ser instalado no console para os testes de integração.
 
-## Build nativo
+## Integração dentro do Terraria
 
-O workflow **Build T360 ModLoader XEX** compila o gerenciador com xsdk e publica o arquivo `.xex` como artefato. A compilação #3 foi bem-sucedida e o XEX foi executado no Xbox 360 RGH. O teste confirmou somente a inicialização da interface e a navegação do controle; não confirma o funcionamento completo do explorador nem a instalação ou o carregamento de mods.
+O workflow **Terraria XEX static analysis** aplica o patch de menu em uma cópia separada do assembly gerenciado e reconstrói uma cópia de `game.exe.xex`. A entrada T360 abre uma tela inicial dentro do Terraria. A tela informa que o carregamento de mods ainda está em desenvolvimento; ela não carrega mods nesta fase.
+
+O workflow **Build T360 ModLoader XEX** pertence ao protótipo nativo separado e não representa a interface final escolhida para o projeto.
 
 ## Formato e segurança
 
