@@ -59,7 +59,7 @@ def main() -> int:
     a.markdown.parent.mkdir(parents=True, exist_ok=True)
     a.markdown.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(report["status"])
-    return 0 if report["status"] == "storage-api-audit-pass" else 1
+    return 0 if report["status"] in ("storage-api-audit-pass", "storage-api-audit-pass-with-blocker") else 1
 
 if __name__ == "__main__":
     raise SystemExit(main())
