@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "input/Terraria.xbla"
+      - ".github/workflows/extract-terraria-xbla.yml"
 
 permissions:
   contents: read
@@ -16,9 +16,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check input package
+      - name: Download XBLA from release 0.01
+        env:
+          XBLA_URL: https://github.com/davizim140/t360modloader/releases/download/0.01/6F1132CE697FD7B5FB8052FEAA182741944E0EC458
         run: |
-          test -s input/Terraria.xbla
+          mkdir -p input
+          curl --fail --location --retry 3 "$XBLA_URL" -o input/Terraria.xbla
+          echo "6d6f12017cc1133e4652a60df0f3cae5769f2941240a027079c60715ca30b0c7  input/Terraria.xbla" | sha256sum --check
+          test "$(stat -c%s input/Terraria.xbla)" -eq 34930688
           file input/Terraria.xbla
           python3 - <<'PY'
           from pathlib import Path
@@ -33,7 +38,7 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/D221/x360-rs.git /tmp/x360-rs
           cd /tmp/x360-rs
-          cargo build --release
+          cargo build --release --locked
 
       - name: Verify and extract package
         run: |
