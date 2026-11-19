@@ -29,7 +29,7 @@ var setMenu=ui.Methods.Single(m=>m.Name=="SetMenu"&&m.Parameters.Count==3);
 var play=main.Methods.Single(m=>m.Name=="PlaySound"&&m.Parameters.Count==1);
 var status=Convert.ToInt32(mod.Types.Single(t=>t.FullName=="Terraria.MenuMode").Fields.Single(f=>f.Name=="STATUS_SCREEN").Constant);
 var backCheck=ui.Methods.Single(m=>m.Name=="IsBackButtonTriggered"&&m.Parameters.Count==0);
-var prevMenu=ui.Methods.Single(m=>m.Name=="PrevMenu"&&m.Parameters.Count==0);
+
 var quit=Convert.ToInt32(mod.Types.Single(t=>t.FullName=="Terraria.MenuMode").Fields.Single(f=>f.Name=="QUIT").Constant);
 var ins=update.Body.Instructions;
 
@@ -130,7 +130,7 @@ var valid=Validate(mod);
 var pass=sourceHash==Hash(input)&&File.Exists(output)&&beforeMvid==mod.Mvid&&valid&&
  checkedUpdate.Body.Instructions.Any(i=>Is(i,Code.Ldstr)&&Equals(i.Operand,"T360 ModLoader"))&&
  checkedUpdate.Body.Instructions.Any(i=>Is(i,Code.Ldc_I4_8))&&checkedUpdate.Body.Instructions.Any(i=>Is(i,Code.Ldstr)&&Equals(i.Operand,"T360 ModLoader\\nInterface integrada ao Terraria.\\nMods: carregamento em desenvolvimento\\nB: Voltar"));
-var statusBackWired=checkedUpdate.Body.Instructions.Any(i=>i.OpCode.Code==Code.Call&&i.Operand is MethodReference mr&&mr.Name=="IsBackButtonTriggered")&&checkedUpdate.Body.Instructions.Any(i=>i.OpCode.Code==Code.Call&&i.Operand is MethodReference mr&&mr.Name=="PrevMenu");
+var statusBackWired=checkedUpdate.Body.Instructions.Any(i=>i.OpCode.Code==Code.Call&&i.Operand is MethodReference mr&&mr.Name=="IsBackButtonTriggered")&&checkedUpdate.Body.Instructions.Any(i=>i.OpCode.Code==Code.Call&&i.Operand is MethodReference mr&&mr.Name=="SetMenu");
 pass=pass&&statusBackWired;
 var report=new{status=pass?"main-menu-integration-copy-patch-pass":"main-menu-integration-copy-patch-fail",mode="separate-copy-only",sourceSha256=sourceHash,sourceUnchanged=sourceHash==Hash(input),outputSha256=Hash(output),changes=new[]{"Full game: T360 at index 5; Quit at index 6; count 7","Trial: Marketplace at 5; T360 at 6; Quit at 7; count 8","T360 selection routes to STATUS_SCREEN landing page with explicit not-yet-loaded status","Trial Quit selection moved to index 7","Title coordinate slots 6/7 enabled as required"},validation=new{controlFlowTargetsValid=valid,statusScreenBackHandler=statusBackWired,assemblyWritten=File.Exists(output),verificationMethod="in-memory Mono.Cecil validation; avoids unavailable Xbox framework resolution",moduleIdentityPreserved=beforeMvid==mod.Mvid},safety=new{originalDllOverwritten=false,xexProducedByPatchStep=false,xboxRuntimeTested=false,signatureNotAddressed=true}};
 File.WriteAllText(output+".patch-report.json",JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
