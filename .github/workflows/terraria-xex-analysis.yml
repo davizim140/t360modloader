@@ -397,7 +397,7 @@ jobs:
             --json research/output/storage-api-audit.json \
             --markdown research/output/storage-api-audit.md
           test -s research/output/storage-api-audit.json
-          jq -e '.status == "storage-api-audit-pass" and .checks.blocking_open_helper_detected == true and .safety.gameAssemblyModified == false and .safety.xexProduced == false' research/output/storage-api-audit.json
+          jq -e '.status == "storage-api-audit-pass-with-blocker" and .checks.blocking_open_helper_detected == true and .checks.callback_driven_container_open_not_yet_proven == false and .safety.gameAssemblyModified == false and .safety.xexProduced == false' research/output/storage-api-audit.json
 
       - name: Inventory Terraria controller bindings
         shell: bash
