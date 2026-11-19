@@ -26,6 +26,7 @@ var menuString=Field(ui,"menuString"); var count=Field(ui,"numMenuItems");
 var coords=Field(ui,"MENU_TITLE_COORDS"); var statusText=Field(ui,"statusText");
 var isTrial=Field(main,"isTrial");
 var setMenu=ui.Methods.Single(m=>m.Name=="SetMenu"&&m.Parameters.Count==3);
+var prevMenu=ui.Methods.Single(m=>m.Name=="PrevMenu"&&m.Parameters.Count==1&&m.Parameters[0].ParameterType.MetadataType==MetadataType.Int32);
 var play=main.Methods.Single(m=>m.Name=="PlaySound"&&m.Parameters.Count==1);
 var status=Convert.ToInt32(mod.Types.Single(t=>t.FullName=="Terraria.MenuMode").Fields.Single(f=>f.Name=="STATUS_SCREEN").Constant);
 var backCheck=ui.Methods.Single(m=>m.Name=="IsBackButtonTriggered"&&m.Parameters.Count==0);
@@ -44,8 +45,7 @@ var statusBackSkip=Instruction.Create(OpCodes.Nop);
 var statusBackHandler=new[]{
     Instruction.Create(OpCodes.Ldarg_0),Instruction.Create(OpCodes.Call,backCheck),
     Instruction.Create(OpCodes.Brfalse,statusBackSkip),Instruction.Create(OpCodes.Ldarg_0),
-    Instruction.Create(OpCodes.Ldc_I4_0),Instruction.Create(OpCodes.Ldc_I4_1),
-    Instruction.Create(OpCodes.Ldc_I4_0),Instruction.Create(OpCodes.Call,setMenu),statusBackSkip
+    Instruction.Create(OpCodes.Ldc_I4_M1),Instruction.Create(OpCodes.Call,prevMenu),statusBackSkip
 };
 var statusBackAnchor=statusScreenBody.Previous!;
 foreach(var x in statusBackHandler){il.InsertAfter(statusBackAnchor,x);statusBackAnchor=x;}
