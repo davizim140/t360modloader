@@ -43,7 +43,8 @@ var statusBackSkip=Instruction.Create(OpCodes.Nop);
 var statusBackHandler=new[]{
     Instruction.Create(OpCodes.Ldarg_0),Instruction.Create(OpCodes.Call,backCheck),
     Instruction.Create(OpCodes.Brfalse,statusBackSkip),Instruction.Create(OpCodes.Ldarg_0),
-    Instruction.Create(OpCodes.Call,prevMenu),statusBackSkip
+    Instruction.Create(OpCodes.Ldc_I4_0),Instruction.Create(OpCodes.Ldc_I4_1),
+    Instruction.Create(OpCodes.Ldc_I4_0),Instruction.Create(OpCodes.Call,setMenu),statusBackSkip
 };
 var statusBackAnchor=statusTipsUpdate;
 foreach(var x in statusBackHandler){il.InsertAfter(statusBackAnchor,x);statusBackAnchor=x;}
