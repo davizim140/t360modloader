@@ -25,8 +25,9 @@ def main() -> int:
         "container_file_exists": require(ui, ".FileExists(", "FileExists"),
         "container_stream_open": require(ui, ".OpenFile(", "OpenFile"),
         "container_disposal": require(ui, "((IDisposable)val)?.Dispose()", "Dispose"),
-        "async_container_open": require(manager, "StorageDevice.BeginShowSelector", "BeginShowSelector"),
-        "async_container_callback": require(ui, "BeginOpenContainer", "BeginOpenContainer"),
+        "storage_device_selector_api": require(manager, "StorageDevice.BeginShowSelector", "BeginShowSelector"),
+        "begin_open_container_api": require(ui, "BeginOpenContainer", "BeginOpenContainer"),
+        "callback_driven_container_open_not_yet_proven": "BeginOpenContainer" in ui and "(AsyncCallback)null" not in ui,
         "sync_wait_in_existing_open_helper": require(ui, "asyncResult.AsyncWaitHandle.WaitOne()", "WaitOne"),
     }
     checks["all_required_storage_evidence_found"] = all(v for k,v in checks.items() if k != "sync_wait_in_existing_open_helper")
@@ -37,7 +38,7 @@ def main() -> int:
         "checks": checks,
         "implementation_constraints": [
             "Do not call OpenPlayerStorage from the per-frame UI Update path: it waits synchronously.",
-            "Use an asynchronous open/callback state machine or a verified safe worker strategy before connecting a catalog.",
+            "The decompiled calls currently pass a null callback and wait; a callback-driven open path must be implemented and audited before catalog I/O.",
             "Reuse the currently selected StorageDevice; do not prompt for storage unexpectedly.",
             "Use a dedicated T360 container; never reuse Characters, Worlds, or Settings.",
             "The audit proves API presence only, not container creation behavior or Xbox 360 runtime compatibility."
@@ -45,7 +46,7 @@ def main() -> int:
         "safety": {"sourceFilesModified": False, "gameAssemblyModified": False, "xexProduced": False, "consoleTested": False}
     }
     a.json.parent.mkdir(parents=True, exist_ok=True)
-    a.json.write_text(json.dumps(report, indent=2) + "\\n", encoding="utf-8")
+    a.json.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     lines = [
         "# Terraria storage API audit", "",
         "**Status:** " + report["status"], "",
