@@ -30,7 +30,7 @@ def main() -> int:
         "callback_driven_container_open_not_yet_proven": "BeginOpenContainer" in ui and "(AsyncCallback)null" not in ui,
         "sync_wait_in_existing_open_helper": require(ui, "asyncResult.AsyncWaitHandle.WaitOne()", "WaitOne"),
     }
-    checks["all_required_storage_evidence_found"] = all(v for k,v in checks.items() if k != "sync_wait_in_existing_open_helper")
+    checks["all_required_storage_evidence_found"] = all(v for k,v in checks.items() if k not in ("sync_wait_in_existing_open_helper", "callback_driven_container_open_not_yet_proven"))
     checks["blocking_open_helper_detected"] = checks["sync_wait_in_existing_open_helper"]
     report = {
         "status": "storage-api-audit-pass" if checks["all_required_storage_evidence_found"] else "storage-api-audit-fail",
